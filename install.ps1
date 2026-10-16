@@ -28,8 +28,9 @@ $shell = New-Object -ComObject WScript.Shell
 $shortcut = $shell.CreateShortcut($shortcutPath)
 $shortcut.TargetPath = $app
 $shortcut.WorkingDirectory = $installDir
-$shortcut.Description = 'Read selected text or screen text aloud'
+$shortcut.Description = 'Copy screen text or read text aloud'
 $shortcut.Save()
 if (!$NoStart) { Start-Process -FilePath $app -WindowStyle Hidden }
 Write-Host "Installed to $installDir. Starts at login."
 Write-Host 'Read selection: Ctrl+Alt+S. Read screen region: Ctrl+Alt+A. Stop: Ctrl+Alt+Q.'
+Write-Host 'Copy screen text: Ctrl+Alt+C. Right-click the tray icon for the speed slider and controls.'

@@ -1,6 +1,7 @@
+mod clipboard;
 mod selection;
 mod speech;
-mod speed;
+mod tray;
 
 use std::error::Error;
 use std::ffi::c_void;
@@ -19,7 +20,7 @@ use windows::Media::Ocr::{OcrEngine, OcrResult};
 use windows::Storage::Streams::DataWriter;
 use windows::Win32::Foundation::{
     CloseHandle, GetLastError, BOOL, COLORREF, ERROR_ALREADY_EXISTS, ERROR_SUCCESS, HANDLE,
-    HINSTANCE, HWND, LPARAM, LRESULT, POINT, WPARAM,
+    HINSTANCE, HWND, LPARAM, LRESULT, WPARAM,
 };
 use windows::Win32::Graphics::Gdi::{
     BeginPaint, BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, CreatePen, CreateSolidBrush,
@@ -48,17 +49,16 @@ use windows::Win32::UI::Shell::{
     NOTIFYICONDATAW,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    AppendMenuW, CreatePopupMenu, CreateWindowExW, DefWindowProcW, DestroyMenu, DestroyWindow,
-    DispatchMessageW, GetCursorPos, GetForegroundWindow, GetMessageW, GetSystemMetrics,
-    GetWindowLongPtrW, KillTimer, LoadCursorW, LoadIconW, MessageBoxW, PostMessageW,
-    PostQuitMessage, RegisterClassW, SetForegroundWindow, SetTimer, SetWindowLongPtrW, ShowWindow,
-    TrackPopupMenu, TranslateMessage, CREATESTRUCTW, GWLP_USERDATA, HMENU, IDC_ARROW, IDC_CROSS,
-    IDI_APPLICATION, MB_ICONERROR, MB_OK, MF_CHECKED, MF_SEPARATOR, MF_STRING, MF_UNCHECKED, MSG,
-    SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SW_SHOW,
-    SW_SHOWNOACTIVATE, TPM_LEFTALIGN, TPM_RIGHTBUTTON, WINDOW_EX_STYLE, WINDOW_STYLE, WM_APP,
-    WM_COMMAND, WM_DESTROY, WM_HOTKEY, WM_KEYDOWN, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MOUSEMOVE,
-    WM_NCCREATE, WM_NCDESTROY, WM_PAINT, WM_RBUTTONDOWN, WM_RBUTTONUP, WM_TIMER, WNDCLASSW,
-    WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP,
+    CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetForegroundWindow,
+    GetMessageW, GetSystemMetrics, GetWindowLongPtrW, KillTimer, LoadCursorW, LoadIconW,
+    MessageBoxW, PostMessageW, PostQuitMessage, RegisterClassW, SetForegroundWindow, SetTimer,
+    SetWindowLongPtrW, ShowWindow, TranslateMessage, CREATESTRUCTW, GWLP_USERDATA, HMENU,
+    IDC_ARROW, IDC_CROSS, IDI_APPLICATION, MB_ICONERROR, MB_OK, MSG, SM_CXVIRTUALSCREEN,
+    SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SW_SHOW, SW_SHOWNOACTIVATE,
+    WINDOW_EX_STYLE, WINDOW_STYLE, WM_APP, WM_COMMAND, WM_DESTROY, WM_HOTKEY, WM_KEYDOWN,
+    WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MOUSEMOVE, WM_NCCREATE, WM_NCDESTROY, WM_PAINT,
+    WM_RBUTTONDOWN, WM_RBUTTONUP, WM_TIMER, WNDCLASSW, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
+    WS_EX_TOPMOST, WS_POPUP,
 };
 
 type AnyResult<T> = std::result::Result<T, Box<dyn Error>>;
@@ -68,7 +68,9 @@ const HOTKEY_STOP: i32 = 4;
 const IDM_SELECTED: usize = 104;
 const IDM_STOP: usize = 105;
 const IDM_VOICE_BASE: usize = 500;
-const IDM_SPEED: usize = 600;
+const IDM_COPY: usize = 106;
+const HOTKEY_COPY: i32 = 5;
+const DEFAULT_COPY_HOTKEY: &str = "Ctrl+Alt+C";
 const WM_TEXT_READY: u32 = WM_APP + 6;
 const WM_OVERLAY_CLOSED: u32 = WM_APP + 7;
 const TIMER_RELEASE_SPEECH: usize = 3;
@@ -177,9 +179,10 @@ fn diagnostics(args: &[String]) -> AnyResult<()> {
             let command = match args[1].as_str() {
                 "selected" => IDM_SELECTED,
                 "capture" => IDM_CAPTURE,
+                "copy" => IDM_COPY,
                 "stop" => IDM_STOP,
                 "exit" => IDM_EXIT,
-                _ => return Err("Expected selected, capture, stop, or exit".into()),
+                _ => return Err("Expected selected, capture, copy, stop, or exit".into()),
             };
             unsafe {
                 let class = wide_null("InstaSpeakRustHiddenWindow");
@@ -191,7 +194,7 @@ fn diagnostics(args: &[String]) -> AnyResult<()> {
                 }
             }
         }
-        _ => return Err("Use --list-voices, --list-languages, --benchmark, --speak TEXT, --read-selection, --capture-rect X Y W H, --validate-hotkey HOTKEY, --trigger selected|capture|stop|exit, or --resident.".into()),
+        _ => return Err("Use --list-voices, --list-languages, --benchmark, --speak TEXT, --read-selection, --capture-rect X Y W H, --validate-hotkey HOTKEY, --trigger selected|capture|copy|stop|exit, or --resident.".into()),
     }
     Ok(())
 }
@@ -286,7 +289,7 @@ fn run_resident_app(resident_warm: bool) -> AnyResult<()> {
     unsafe {
         let mut msg = MSG::default();
         while GetMessageW(&mut msg, null_hwnd(), 0, 0).as_bool() {
-            if let Some(window) = app.speed_window {
+            if let Some(window) = app.tray_panel {
                 if windows::Win32::UI::WindowsAndMessaging::IsDialogMessageW(window, &msg).as_bool()
                 {
                     continue;
@@ -343,7 +346,14 @@ struct AppState {
     selection_busy: bool,
     overlay: Option<HWND>,
     previous_foreground: HWND,
-    speed_window: Option<HWND>,
+    tray_panel: Option<HWND>,
+    capture_action: CaptureAction,
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum CaptureAction {
+    Read,
+    Copy,
 }
 
 #[derive(Clone)]
@@ -353,6 +363,7 @@ struct RustSettings {
     cycle_hotkey: String,
     selected_hotkey: String,
     stop_hotkey: String,
+    copy_hotkey: String,
     voice_id: String,
     rate: i32,
 }
@@ -365,6 +376,7 @@ impl Default for RustSettings {
             cycle_hotkey: DEFAULT_CYCLE_HOTKEY.to_string(),
             selected_hotkey: DEFAULT_SELECTED_HOTKEY.to_string(),
             stop_hotkey: DEFAULT_STOP_HOTKEY.to_string(),
+            copy_hotkey: DEFAULT_COPY_HOTKEY.to_string(),
             voice_id: String::new(),
             rate: 0,
         }
@@ -387,6 +399,8 @@ impl RustSettings {
                 settings.capture_hotkey = value.trim().to_string();
             } else if let Some(value) = line.strip_prefix("selected_hotkey=") {
                 settings.selected_hotkey = value.trim().to_string();
+            } else if let Some(value) = line.strip_prefix("copy_hotkey=") {
+                settings.copy_hotkey = value.trim().to_string();
             } else if let Some(value) = line.strip_prefix("stop_hotkey=") {
                 settings.stop_hotkey = value.trim().to_string();
             } else if let Some(value) = line.strip_prefix("voice_id=") {
@@ -423,6 +437,31 @@ impl RustSettings {
             settings.stop_hotkey = defaults.stop_hotkey;
         }
 
+        let others: Vec<_> = [
+            &settings.capture_hotkey,
+            &settings.cycle_hotkey,
+            &settings.selected_hotkey,
+            &settings.stop_hotkey,
+        ]
+        .iter()
+        .map(|value| Hotkey::parse(value).unwrap())
+        .collect();
+        let available = |value: &str| {
+            Hotkey::parse(value)
+                .map(|key| {
+                    !others.iter().any(|other| {
+                        other.modifiers == key.modifiers && other.virtual_key == key.virtual_key
+                    })
+                })
+                .unwrap_or(false)
+        };
+        if !available(&settings.copy_hotkey) {
+            settings.copy_hotkey = ('C'..='G')
+                .map(|key| format!("Ctrl+Alt+{key}"))
+                .find(|value| available(value))
+                .unwrap();
+        }
+
         settings
     }
 
@@ -434,8 +473,8 @@ impl RustSettings {
 
         let value = self.language_tag.as_deref().unwrap_or("");
         let text = format!(
-            "language_tag={value}\ncapture_hotkey={}\ncycle_hotkey={}\nselected_hotkey={}\nstop_hotkey={}\nvoice_id={}\nrate={}\n",
-            self.capture_hotkey, self.cycle_hotkey, self.selected_hotkey, self.stop_hotkey, self.voice_id, self.rate
+            "language_tag={value}\ncapture_hotkey={}\ncycle_hotkey={}\nselected_hotkey={}\nstop_hotkey={}\ncopy_hotkey={}\nvoice_id={}\nrate={}\n",
+            self.capture_hotkey, self.cycle_hotkey, self.selected_hotkey, self.stop_hotkey, self.copy_hotkey, self.voice_id, self.rate
         );
         let _ = fs::write(path, text);
     }
@@ -567,11 +606,20 @@ impl AppState {
             selection_busy: false,
             overlay: None,
             previous_foreground: null_hwnd(),
-            speed_window: None,
+            tray_panel: None,
+            capture_action: CaptureAction::Read,
         })
     }
 
     fn register_hotkeys(&mut self) {
+        self.settings.copy_hotkey = self
+            .register_hotkey_or_default(
+                HOTKEY_COPY,
+                Hotkey::parse(&self.settings.copy_hotkey).unwrap(),
+                DEFAULT_COPY_HOTKEY,
+                "copy OCR text",
+            )
+            .display;
         for (id, configured, default, label) in [
             (
                 HOTKEY_SELECTED,
@@ -710,8 +758,19 @@ impl AppState {
         }
     }
 
-    fn start_capture(&mut self) {
-        self.stop_reading();
+    fn start_capture(&mut self, action: CaptureAction) {
+        self.close_tray();
+        if action == CaptureAction::Read {
+            self.stop_reading();
+        } else {
+            self.request_id = self.request_id.wrapping_add(1);
+            if let Some(hwnd) = self.overlay.take() {
+                unsafe {
+                    let _ = DestroyWindow(hwnd);
+                }
+            }
+        }
+        self.capture_action = action;
         self.hide_status_popup();
         self.update_status("Capturing screen...");
         spawn_screen_capture(self.hwnd, self.request_id);
@@ -800,7 +859,19 @@ impl AppState {
         match message.result {
             Ok(success) => {
                 println!("ocr_ready_ms={:.2}", success.outcome.total_ms);
-                self.read_text(&success.outcome.text);
+                if self.capture_action == CaptureAction::Copy {
+                    match clipboard::copy(self.hwnd, &success.outcome.text) {
+                        Ok(()) => {
+                            self.show_status_popup("OCR text copied to clipboard");
+                            println!("ocr_copied=true");
+                        }
+                        Err(error) => {
+                            self.show_status_popup(&format!("Could not copy OCR text: {error}"))
+                        }
+                    }
+                } else {
+                    self.read_text(&success.outcome.text);
+                }
             }
             Err(error) => self.show_status_popup(&format!("OCR failed: {error}")),
         }
@@ -834,13 +905,17 @@ impl AppState {
     }
 
     fn read_selection(&mut self) {
+        let had_panel = self.tray_panel.is_some();
+        self.close_tray();
         self.stop_reading();
         if self.selection_busy {
             return;
         }
         self.selection_busy = true;
         unsafe {
-            if GetForegroundWindow() == self.hwnd && !self.previous_foreground.0.is_null() {
+            if (had_panel || GetForegroundWindow() == self.hwnd)
+                && !self.previous_foreground.0.is_null()
+            {
                 let _ = SetForegroundWindow(self.previous_foreground);
             }
         }
@@ -871,85 +946,53 @@ impl AppState {
     }
 
     fn show_menu(&mut self) {
-        unsafe {
-            self.previous_foreground = GetForegroundWindow();
-            let menu = match CreatePopupMenu() {
-                Ok(menu) => menu,
-                Err(error) => {
-                    eprintln!("CreatePopupMenu failed: {error}");
-                    return;
-                }
-            };
+        if self.tray_panel.is_none() {
+            self.previous_foreground = unsafe { GetForegroundWindow() };
+        }
+        self.voice_choices = speech::voices().unwrap_or_default();
+        let selected_voice = if self.settings.voice_id.is_empty() {
+            speech::default_voice_id().unwrap_or_default()
+        } else {
+            self.settings.voice_id.clone()
+        };
+        let mut languages = vec!["Auto (user profile languages)".to_string()];
+        languages.extend(
+            self.ocr
+                .installed
+                .iter()
+                .map(|language| format!("{} ({})", language.display_name, language.tag)),
+        );
+        let options = tray::Options {
+            rate: self.settings.rate,
+            voice_index: self
+                .voice_choices
+                .iter()
+                .position(|(id, _)| *id == selected_voice)
+                .unwrap_or(0),
+            voices: self
+                .voice_choices
+                .iter()
+                .map(|(_, label)| label.clone())
+                .collect(),
+            languages,
+            language_index: self.ocr.current_index(),
+            startup: is_startup_enabled(),
+            read_hotkey: self.settings.selected_hotkey.clone(),
+            capture_hotkey: self.capture_hotkey.display.clone(),
+            copy_hotkey: self.settings.copy_hotkey.clone(),
+            stop_hotkey: self.settings.stop_hotkey.clone(),
+        };
+        match tray::show(self.hwnd, self.tray_panel, &options) {
+            Ok(window) => self.tray_panel = Some(window),
+            Err(error) => self.show_status_popup(&format!("Tray panel failed: {error}")),
+        }
+    }
 
-            append_menu(
-                menu,
-                IDM_SELECTED,
-                &format!("Read selected text\t{}", self.settings.selected_hotkey),
-            );
-            append_menu(
-                menu,
-                IDM_STOP,
-                &format!("Stop reading\t{}", self.settings.stop_hotkey),
-            );
-            AppendMenuW(menu, MF_SEPARATOR, 0, PCWSTR(null())).ok();
-            append_menu(
-                menu,
-                IDM_CAPTURE,
-                &format!("Capture\t{}", self.capture_hotkey.display),
-            );
-            append_menu(
-                menu,
-                IDM_CYCLE_LANGUAGE,
-                &format!("Cycle OCR language\t{}", self.cycle_hotkey.display),
-            );
-            self.voice_choices = speech::voices().unwrap_or_default();
-            let selected_voice = if self.settings.voice_id.is_empty() {
-                speech::default_voice_id().unwrap_or_default()
-            } else {
-                self.settings.voice_id.clone()
-            };
-            AppendMenuW(menu, MF_SEPARATOR, 0, PCWSTR(null())).ok();
-            for (i, (id, label)) in self.voice_choices.iter().enumerate() {
-                let flags = MF_STRING
-                    | if *id == selected_voice {
-                        MF_CHECKED
-                    } else {
-                        MF_UNCHECKED
-                    };
-                let label = wide_null(label);
-                AppendMenuW(menu, flags, IDM_VOICE_BASE + i, PCWSTR(label.as_ptr())).ok();
+    fn close_tray(&mut self) {
+        if let Some(window) = self.tray_panel.take() {
+            unsafe {
+                let _ = DestroyWindow(window);
             }
-            append_menu(menu, IDM_SPEED, "Reading speed...");
-            AppendMenuW(menu, MF_SEPARATOR, 0, PCWSTR(null())).ok();
-            append_language_menu(menu, &self.ocr);
-            AppendMenuW(menu, MF_SEPARATOR, 0, PCWSTR(null())).ok();
-            let startup_label = if is_startup_enabled() {
-                "Disable run at startup"
-            } else {
-                "Enable run at startup"
-            };
-            append_menu(menu, IDM_TOGGLE_STARTUP, startup_label);
-            AppendMenuW(menu, MF_SEPARATOR, 0, PCWSTR(null())).ok();
-            append_menu(menu, IDM_EXIT, "Exit");
-
-            let mut point = POINT::default();
-            if let Err(error) = GetCursorPos(&mut point) {
-                eprintln!("GetCursorPos failed: {error}");
-                DestroyMenu(menu).ok();
-                return;
-            }
-
-            let _ = SetForegroundWindow(self.hwnd);
-            let _ = TrackPopupMenu(
-                menu,
-                TPM_LEFTALIGN | TPM_RIGHTBUTTON,
-                point.x,
-                point.y,
-                0,
-                self.hwnd,
-                None,
-            );
-            DestroyMenu(menu).ok();
         }
     }
 
@@ -970,9 +1013,10 @@ impl AppState {
     fn cleanup(&mut self) {
         self.stop_reading();
         unsafe {
-            if let Some(hwnd) = self.speed_window.take() {
+            if let Some(hwnd) = self.tray_panel.take() {
                 let _ = DestroyWindow(hwnd);
             }
+            UnregisterHotKey(self.hwnd, HOTKEY_COPY).ok();
             UnregisterHotKey(self.hwnd, HOTKEY_SELECTED).ok();
             UnregisterHotKey(self.hwnd, HOTKEY_STOP).ok();
             if let Some(hwnd) = self.status_popup.take() {
@@ -1293,7 +1337,7 @@ unsafe extern "system" fn hidden_wnd_proc(
 
     let app_ptr = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *mut AppState;
     match msg {
-        speed::CHANGED => {
+        tray::CHANGED => {
             if let Some(app) = app_ptr.as_mut() {
                 let rate = (wparam.0 as i32 - 10).clamp(-10, 10);
                 match app.speech.set_rate(rate) {
@@ -1309,10 +1353,10 @@ unsafe extern "system" fn hidden_wnd_proc(
             }
             LRESULT(0)
         }
-        speed::CLOSED => {
+        tray::CLOSED => {
             if let Some(app) = app_ptr.as_mut() {
-                if app.speed_window.map(|h| h.0 as usize) == Some(wparam.0) {
-                    app.speed_window = None;
+                if app.tray_panel.map(|h| h.0 as usize) == Some(wparam.0) {
+                    app.tray_panel = None;
                 }
             }
             LRESULT(0)
@@ -1330,7 +1374,8 @@ unsafe extern "system" fn hidden_wnd_proc(
                 match wparam.0 as i32 {
                     HOTKEY_SELECTED => app.read_selection(),
                     HOTKEY_STOP => app.stop_reading(),
-                    HOTKEY_CAPTURE => app.start_capture(),
+                    HOTKEY_CAPTURE => app.start_capture(CaptureAction::Read),
+                    HOTKEY_COPY => app.start_capture(CaptureAction::Copy),
                     HOTKEY_CYCLE_LANGUAGE => app.cycle_language(),
                     _ => {}
                 }
@@ -1351,7 +1396,8 @@ unsafe extern "system" fn hidden_wnd_proc(
                 match loword(wparam.0) as usize {
                     IDM_SELECTED => app.read_selection(),
                     IDM_STOP => app.stop_reading(),
-                    IDM_CAPTURE => app.start_capture(),
+                    IDM_CAPTURE => app.start_capture(CaptureAction::Read),
+                    IDM_COPY => app.start_capture(CaptureAction::Copy),
                     IDM_CYCLE_LANGUAGE => app.cycle_language(),
                     IDM_LIST_LANGUAGES => print_languages(&app.ocr),
                     IDM_TOGGLE_STARTUP => app.toggle_startup(),
@@ -1363,12 +1409,6 @@ unsafe extern "system" fn hidden_wnd_proc(
                         app.settings.voice_id = app.voice_choices[id - IDM_VOICE_BASE].0.clone();
                         app.settings.save();
                     }
-                    IDM_SPEED => match speed::show(hwnd, app.speed_window, app.settings.rate) {
-                        Ok(window) => app.speed_window = Some(window),
-                        Err(error) => {
-                            app.show_status_popup(&format!("Speed control failed: {error}"))
-                        }
-                    },
                     id if id >= IDM_LANGUAGE_BASE && id < IDM_LANGUAGE_BASE + 100 => {
                         app.set_language_index(id - IDM_LANGUAGE_BASE);
                     }
@@ -1716,49 +1756,6 @@ fn notify_icon_data(hwnd: HWND, tip: &str) -> NOTIFYICONDATAW {
     data.uID = TRAY_ID;
     copy_wide_fixed(&mut data.szTip, tip);
     data
-}
-
-unsafe fn append_menu(menu: HMENU, id: usize, text: &str) {
-    let wide = wide_null(text);
-    AppendMenuW(menu, MF_STRING, id, PCWSTR(wide.as_ptr())).ok();
-}
-
-unsafe fn append_language_menu(menu: HMENU, ocr: &OcrController) {
-    let auto_label = if ocr.current_index() == 0 {
-        "OCR: Auto ✓"
-    } else {
-        "OCR: Auto"
-    };
-    let wide = wide_null(auto_label);
-    let flags = MF_STRING
-        | if ocr.current_index() == 0 {
-            MF_CHECKED
-        } else {
-            MF_UNCHECKED
-        };
-    AppendMenuW(menu, flags, IDM_LANGUAGE_BASE, PCWSTR(wide.as_ptr())).ok();
-
-    for (index, language) in ocr.installed.iter().enumerate() {
-        let label = if ocr.current_index() == index + 1 {
-            format!("OCR: {} ({}) ✓", language.display_name, language.tag)
-        } else {
-            format!("OCR: {} ({})", language.display_name, language.tag)
-        };
-        let wide = wide_null(&label);
-        let flags = MF_STRING
-            | if ocr.current_index() == index + 1 {
-                MF_CHECKED
-            } else {
-                MF_UNCHECKED
-            };
-        AppendMenuW(
-            menu,
-            flags,
-            IDM_LANGUAGE_BASE + index + 1,
-            PCWSTR(wide.as_ptr()),
-        )
-        .ok();
-    }
 }
 
 struct OcrController {
