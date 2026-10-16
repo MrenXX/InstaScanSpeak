@@ -1,0 +1,4 @@
+/target/
+/instocr-reference/
+/artifacts/
+*.zip
