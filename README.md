@@ -38,7 +38,7 @@ The build is unsigned, so Windows may show a SmartScreen prompt.
 
 Measured on the development Windows 11 machine, not a guarantee for other hardware:
 
-- Tray executable, roughly 403 KiB.
+- Tray executable, roughly 406 KiB.
 - Initial idle working set, roughly 12 MiB. Private bytes, roughly 1.9 MiB.
 - After reading and idle cleanup, roughly 27 MiB working set and 6.5 MiB private bytes.
 - SAPI speech stream startup, 122 ms for the first read and about 15 ms for repeated reads in the standalone benchmark.

@@ -8,10 +8,10 @@ foreach ($file in @('instaspeak.exe', 'instaspeak-cli.exe')) {
     if (!(Test-Path -LiteralPath (Join-Path $sourceDir $file))) { throw "Missing $file. Run build.ps1 first." }
 }
 New-Item -ItemType Directory -Force -Path $installDir | Out-Null
-if (Test-Path -LiteralPath $cli) {
+$running = Get-Process instaspeak -ErrorAction SilentlyContinue | Where-Object { $_.Path -ieq $app }
+if ($running -and (Test-Path -LiteralPath $cli)) {
     & $cli --trigger exit 2>$null
-    Get-Process instaspeak -ErrorAction SilentlyContinue |
-        Where-Object { $_.Path -ieq $app } | Wait-Process -Timeout 5 -ErrorAction SilentlyContinue
+    $running | Wait-Process -Timeout 5 -ErrorAction SilentlyContinue
 }
 foreach ($file in @('instaspeak.exe', 'instaspeak-cli.exe')) {
     Copy-Item -LiteralPath (Join-Path $sourceDir $file) -Destination $installDir -Force

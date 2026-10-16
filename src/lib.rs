@@ -182,8 +182,12 @@ fn diagnostics(args: &[String]) -> AnyResult<()> {
             };
             unsafe {
                 let class = wide_null("InstaSpeakRustHiddenWindow");
-                let hwnd = windows::Win32::UI::WindowsAndMessaging::FindWindowW(PCWSTR(class.as_ptr()), PCWSTR::null())?;
-                PostMessageW(hwnd, WM_COMMAND, WPARAM(command), LPARAM(0))?;
+                let hwnd = windows::Win32::UI::WindowsAndMessaging::FindWindowW(PCWSTR(class.as_ptr()), PCWSTR::null());
+                match hwnd {
+                    Ok(hwnd) => PostMessageW(hwnd, WM_COMMAND, WPARAM(command), LPARAM(0))?,
+                    Err(_) if command == IDM_STOP || command == IDM_EXIT => {},
+                    Err(error) => return Err(error.into()),
+                }
             }
         }
         _ => return Err("Use --list-voices, --list-languages, --benchmark, --speak TEXT, --read-selection, --capture-rect X Y W H, --validate-hotkey HOTKEY, --trigger selected|capture|stop|exit, or --resident.".into()),
