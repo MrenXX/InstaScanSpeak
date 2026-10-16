@@ -53,6 +53,15 @@ impl Speech {
         }
     }
 
+    pub fn set_rate(&self, rate: i32) -> Result<()> {
+        if let Some(voice) = &self.voice {
+            unsafe {
+                voice.SetRate(rate)?;
+            }
+        }
+        Ok(())
+    }
+
     pub fn release_if_finished(&mut self) {
         if let Some(voice) = &self.voice {
             let mut status = SPVOICESTATUS::default();

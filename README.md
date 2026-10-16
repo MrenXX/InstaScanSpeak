@@ -20,6 +20,8 @@ To run without installing, open `dist\windows-x64\instaspeak.exe`.
 - Press `Ctrl+Alt+L` to cycle the OCR language.
 - Right-click the tray icon to choose a voice, adjust reading speed, toggle startup, or exit.
 
+Choose `Reading speed...` to open the native slider. It covers all 21 speech-rate steps, from -10 to +10, with 0 as normal. Arrow keys move one step; Home and End jump to the limits. Changes save automatically and update speech already playing.
+
 Escape or right-click cancels a screen selection. A new reading request replaces the current speech.
 
 Run `Configure Hotkeys.cmd` to change shortcuts, then restart the app. Defaults differ from InstOCR's shortcuts so both can run together. Settings are stored in `%APPDATA%\InstaSpeak\rust-settings.txt`.
@@ -38,7 +40,7 @@ The build is unsigned, so Windows may show a SmartScreen prompt.
 
 Measured on the development Windows 11 machine, not a guarantee for other hardware:
 
-- Tray executable, roughly 406 KiB.
+- Tray executable, roughly 410 KiB.
 - Initial idle working set, roughly 12 MiB. Private bytes, roughly 1.9 MiB.
 - After reading and idle cleanup, roughly 27 MiB working set and 6.5 MiB private bytes.
 - SAPI speech stream startup, 122 ms for the first read and about 15 ms for repeated reads in the standalone benchmark.
@@ -58,7 +60,7 @@ Requires Windows 10 or 11 x64 and a Rust toolchain. The GNU toolchain includes t
 powershell -NoProfile -STA -ExecutionPolicy Bypass -File .\tests\integration.ps1
 ```
 
-The integration test opens a temporary Windows form and starts a diagnostic tray instance. Exit any running InstaSpeak instance first. It tests selected text, registered hotkeys, screenshot OCR, drag selection, speech queuing, cancellation, and memory after idle. It requires an unlocked desktop with an audio output device. Avoid interacting with the desktop while it runs.
+The integration test opens temporary Windows forms and starts a diagnostic tray instance with isolated settings. Exit any running InstaSpeak instance first. It tests selected text, registered hotkeys, the speed slider and saved rate, live rate changes, screenshot OCR, drag selection, speech queuing, cancellation, and memory after idle. It requires an unlocked desktop with an audio output device. Avoid interacting with the desktop while it runs.
 
 Other diagnostics include `--speak TEXT`, `--read-selection`, `--capture-rect X Y W H`, `--validate-hotkey HOTKEY`, and `--trigger selected|capture|stop|exit`. Rectangle coordinates use physical pixels. `--resident` runs the tray app with console diagnostics. Diagnostics print recognized or selected text when explicitly requested. The tray app does not save text, screenshots, or audio.
 

@@ -1,5 +1,6 @@
 mod selection;
 mod speech;
+mod speed;
 
 use std::error::Error;
 use std::ffi::c_void;
@@ -67,7 +68,7 @@ const HOTKEY_STOP: i32 = 4;
 const IDM_SELECTED: usize = 104;
 const IDM_STOP: usize = 105;
 const IDM_VOICE_BASE: usize = 500;
-const IDM_RATE_BASE: usize = 600;
+const IDM_SPEED: usize = 600;
 const WM_TEXT_READY: u32 = WM_APP + 6;
 const WM_OVERLAY_CLOSED: u32 = WM_APP + 7;
 const TIMER_RELEASE_SPEECH: usize = 3;
@@ -285,6 +286,12 @@ fn run_resident_app(resident_warm: bool) -> AnyResult<()> {
     unsafe {
         let mut msg = MSG::default();
         while GetMessageW(&mut msg, null_hwnd(), 0, 0).as_bool() {
+            if let Some(window) = app.speed_window {
+                if windows::Win32::UI::WindowsAndMessaging::IsDialogMessageW(window, &msg).as_bool()
+                {
+                    continue;
+                }
+            }
             let _ = TranslateMessage(&msg);
             DispatchMessageW(&msg);
         }
@@ -336,6 +343,7 @@ struct AppState {
     selection_busy: bool,
     overlay: Option<HWND>,
     previous_foreground: HWND,
+    speed_window: Option<HWND>,
 }
 
 #[derive(Clone)]
@@ -559,6 +567,7 @@ impl AppState {
             selection_busy: false,
             overlay: None,
             previous_foreground: null_hwnd(),
+            speed_window: None,
         })
     }
 
@@ -910,24 +919,7 @@ impl AppState {
                 let label = wide_null(label);
                 AppendMenuW(menu, flags, IDM_VOICE_BASE + i, PCWSTR(label.as_ptr())).ok();
             }
-            for (i, (rate, label)) in [
-                (-2, "Slower"),
-                (0, "Normal speed"),
-                (2, "Faster"),
-                (4, "Fastest"),
-            ]
-            .iter()
-            .enumerate()
-            {
-                let flags = MF_STRING
-                    | if *rate == self.settings.rate {
-                        MF_CHECKED
-                    } else {
-                        MF_UNCHECKED
-                    };
-                let label = wide_null(label);
-                AppendMenuW(menu, flags, IDM_RATE_BASE + i, PCWSTR(label.as_ptr())).ok();
-            }
+            append_menu(menu, IDM_SPEED, "Reading speed...");
             AppendMenuW(menu, MF_SEPARATOR, 0, PCWSTR(null())).ok();
             append_language_menu(menu, &self.ocr);
             AppendMenuW(menu, MF_SEPARATOR, 0, PCWSTR(null())).ok();
@@ -978,6 +970,9 @@ impl AppState {
     fn cleanup(&mut self) {
         self.stop_reading();
         unsafe {
+            if let Some(hwnd) = self.speed_window.take() {
+                let _ = DestroyWindow(hwnd);
+            }
             UnregisterHotKey(self.hwnd, HOTKEY_SELECTED).ok();
             UnregisterHotKey(self.hwnd, HOTKEY_STOP).ok();
             if let Some(hwnd) = self.status_popup.take() {
@@ -1298,6 +1293,30 @@ unsafe extern "system" fn hidden_wnd_proc(
 
     let app_ptr = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *mut AppState;
     match msg {
+        speed::CHANGED => {
+            if let Some(app) = app_ptr.as_mut() {
+                let rate = (wparam.0 as i32 - 10).clamp(-10, 10);
+                match app.speech.set_rate(rate) {
+                    Ok(()) => {
+                        app.settings.rate = rate;
+                        app.settings.save();
+                        println!("speech_rate={rate}");
+                    }
+                    Err(error) => {
+                        app.show_status_popup(&format!("Could not change speed: {error}"))
+                    }
+                }
+            }
+            LRESULT(0)
+        }
+        speed::CLOSED => {
+            if let Some(app) = app_ptr.as_mut() {
+                if app.speed_window.map(|h| h.0 as usize) == Some(wparam.0) {
+                    app.speed_window = None;
+                }
+            }
+            LRESULT(0)
+        }
         WM_OVERLAY_CLOSED => {
             if let Some(app) = app_ptr.as_mut() {
                 if app.overlay.map(|h| h.0 as usize) == Some(wparam.0) {
@@ -1344,10 +1363,12 @@ unsafe extern "system" fn hidden_wnd_proc(
                         app.settings.voice_id = app.voice_choices[id - IDM_VOICE_BASE].0.clone();
                         app.settings.save();
                     }
-                    id if id >= IDM_RATE_BASE && id < IDM_RATE_BASE + 4 => {
-                        app.settings.rate = [-2, 0, 2, 4][id - IDM_RATE_BASE];
-                        app.settings.save();
-                    }
+                    IDM_SPEED => match speed::show(hwnd, app.speed_window, app.settings.rate) {
+                        Ok(window) => app.speed_window = Some(window),
+                        Err(error) => {
+                            app.show_status_popup(&format!("Speed control failed: {error}"))
+                        }
+                    },
                     id if id >= IDM_LANGUAGE_BASE && id < IDM_LANGUAGE_BASE + 100 => {
                         app.set_language_index(id - IDM_LANGUAGE_BASE);
                     }

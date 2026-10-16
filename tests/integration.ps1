@@ -4,6 +4,7 @@ $cli = Join-Path $projectDir 'dist\windows-x64\instaspeak-cli.exe'
 $artifacts = Join-Path $projectDir 'artifacts'
 New-Item -ItemType Directory -Force -Path $artifacts | Out-Null
 Add-Type -AssemblyName System.Windows.Forms
+Add-Type -Path (Join-Path $PSScriptRoot 'speed-evidence.cs') -ReferencedAssemblies System.Drawing
 Add-Type @'
 using System;
 using System.Runtime.InteropServices;
@@ -49,6 +50,9 @@ $statePath = Join-Path $artifacts 'fixture.json'
 $logPath = Join-Path $artifacts 'resident.log'
 $fixtureProcess = $null
 $residentProcess = $null
+$originalAppData = $env:APPDATA
+$env:APPDATA = Join-Path $artifacts 'test-appdata'
+$testSettings = Join-Path $env:APPDATA 'InstaSpeak\rust-settings.txt'
 function Wait-For($condition, $description) {
     $deadline = [DateTime]::UtcNow.AddSeconds(15)
     do {
@@ -58,6 +62,7 @@ function Wait-For($condition, $description) {
     throw "Timed out: $description"
 }
 try {
+    if (Test-Path -LiteralPath $testSettings) { Remove-Item -LiteralPath $testSettings }
     if (Test-Path -LiteralPath $statePath) { Remove-Item -LiteralPath $statePath }
     $residentProcess = Start-Process -FilePath $cli -ArgumentList '--resident' -WindowStyle Hidden -PassThru -RedirectStandardOutput $logPath -RedirectStandardError (Join-Path $artifacts 'resident-error.log')
     Wait-For { [TestNative]::FindWindow('InstaSpeakRustHiddenWindow',$null) -ne [IntPtr]::Zero } 'resident startup'
@@ -74,6 +79,33 @@ try {
     [TestNative]::Hotkey(0x53)
     Wait-For { (Get-Content -LiteralPath $logPath -Raw) -match 'speech_queued_ms=' } 'selected text hotkey to speech'
     Write-Host 'PASS registered selection hotkey to speech'
+    $mainWindow = [TestNative]::FindWindow('InstaSpeakRustHiddenWindow',$null)
+    [TestNative]::PostMessage($mainWindow,0x111,[IntPtr]600,[IntPtr]0) | Out-Null
+    Wait-For { [TestNative]::FindWindow('InstaSpeakSpeedWindow',$null) -ne [IntPtr]::Zero } 'speed slider'
+    $speedWindow = [TestNative]::FindWindow('InstaSpeakSpeedWindow',$null)
+    $slider = [SpeedEvidence]::GetDlgItem($speedWindow,1)
+    if ($slider -eq [IntPtr]::Zero) { throw 'Native trackbar missing' }
+    [TestNative]::SendMessage($slider,0x100,[IntPtr]0x23,[IntPtr]0) | Out-Null
+    Wait-For { (Get-Content -LiteralPath $testSettings -Raw) -match '(?m)^rate=10$' } 'maximum speed'
+    [TestNative]::SendMessage($slider,0x100,[IntPtr]0x24,[IntPtr]0) | Out-Null
+    Wait-For { (Get-Content -LiteralPath $testSettings -Raw) -match '(?m)^rate=-10$' } 'minimum speed'
+    for ($i=0; $i -lt 13; $i++) { [TestNative]::SendMessage($slider,0x100,[IntPtr]0x27,[IntPtr]0) | Out-Null }
+    Wait-For { (Get-Content -LiteralPath $testSettings -Raw) -match '(?m)^rate=3$' } 'intermediate speed'
+    if ((Get-Content -LiteralPath $logPath -Raw) -notmatch 'speech_rate=3') { throw 'Live rate change did not reach speech controller' }
+    [SpeedEvidence]::Capture($speedWindow,(Join-Path $artifacts 'speed_slider_v0_2.png'))
+    [TestNative]::SendMessage($speedWindow,0x10,[IntPtr]0,[IntPtr]0) | Out-Null
+    [TestNative]::PostMessage($mainWindow,0x111,[IntPtr]600,[IntPtr]0) | Out-Null
+    Wait-For { [TestNative]::FindWindow('InstaSpeakSpeedWindow',$null) -ne [IntPtr]::Zero } 'reopened speed slider'
+    $speedWindow = [TestNative]::FindWindow('InstaSpeakSpeedWindow',$null)
+    $slider = [SpeedEvidence]::GetDlgItem($speedWindow,1)
+    if ([TestNative]::SendMessage($slider,0x400,[IntPtr]0,[IntPtr]0).ToInt64() -ne 13) { throw 'Slider did not retain speed' }
+    [TestNative]::SendMessage($slider,0x100,[IntPtr]0x24,[IntPtr]0) | Out-Null
+    for ($i=0; $i -lt 10; $i++) { [TestNative]::SendMessage($slider,0x100,[IntPtr]0x27,[IntPtr]0) | Out-Null }
+    Wait-For { (Get-Content -LiteralPath $testSettings -Raw) -match '(?m)^rate=0$' } 'normal speed reset'
+    [TestNative]::PostMessage($speedWindow,0x111,[IntPtr]2,[IntPtr]0) | Out-Null
+    Wait-For { [TestNative]::FindWindow('InstaSpeakSpeedWindow',$null) -eq [IntPtr]::Zero } 'close speed slider'
+    Write-Host 'PASS native speed slider, full range, live changes, saved settings, and reopen'
+    [TestNative]::FocusFixture([IntPtr]$state.form,[IntPtr]$state.input)
     [TestNative]::Hotkey(0x51)
     $ocr = & $cli --capture-rect $state.x $state.y $state.width $state.height
     if ($LASTEXITCODE -ne 0 -or ($ocr -join "`n") -notmatch 'InstaSpeak reads this screen text aloud') { throw "OCR failed: $ocr" }
@@ -127,4 +159,5 @@ try {
     if ($fixtureProcess -and !$fixtureProcess.HasExited) { Stop-Process -Id $fixtureProcess.Id }
     if ($residentProcess -and !$residentProcess.HasExited) { $residentProcess.WaitForExit(5000) | Out-Null }
     if ($previous -ne [IntPtr]::Zero) { [TestNative]::SetForegroundWindow($previous) | Out-Null }
+    $env:APPDATA = $originalAppData
 }
