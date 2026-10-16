@@ -17,7 +17,7 @@ foreach ($file in @('instaspeak.exe', 'instaspeak-cli.exe')) {
     Copy-Item -LiteralPath (Join-Path $sourceDir $file) -Destination $installDir -Force
     Unblock-File -LiteralPath (Join-Path $installDir $file)
 }
-foreach ($file in @('configure-hotkeys.ps1', 'Configure Hotkeys.cmd', 'uninstall.ps1')) {
+foreach ($file in @('configure-hotkeys.ps1', 'Configure Hotkeys.cmd', 'uninstall.ps1', 'install-northern-voice.ps1', 'Install Northern English Voice.cmd')) {
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file) -Destination $installDir -Force
 }
 $runKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
@@ -33,4 +33,5 @@ $shortcut.Save()
 if (!$NoStart) { Start-Process -FilePath $app -WindowStyle Hidden }
 Write-Host "Installed to $installDir. Starts at login."
 Write-Host 'Read selection: Ctrl+Alt+S. Read screen region: Ctrl+Alt+A. Stop: Ctrl+Alt+Q.'
-Write-Host 'Copy screen text: Ctrl+Alt+C. Right-click the tray icon for the speed slider and controls.'
+Write-Host 'Copy screen text: Ctrl+Alt+D. Cycle OCR language: Ctrl+Alt+W.'
+Write-Host 'Right-click the tray icon for the speed slider and controls.'

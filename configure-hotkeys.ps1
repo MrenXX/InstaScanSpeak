@@ -3,7 +3,7 @@ $cli = Join-Path $env:LOCALAPPDATA 'InstaSpeak\instaspeak-cli.exe'
 if (!(Test-Path -LiteralPath $cli)) { $cli = Join-Path $PSScriptRoot 'dist\windows-x64\instaspeak-cli.exe' }
 if (!(Test-Path -LiteralPath $cli)) { throw 'Build or install InstaSpeak first.' }
 $settingsPath = Join-Path $env:APPDATA 'InstaSpeak\rust-settings.txt'
-$settings = [ordered]@{ language_tag=''; capture_hotkey='Ctrl+Alt+A'; copy_hotkey='Ctrl+Alt+C'; cycle_hotkey='Ctrl+Alt+L'; selected_hotkey='Ctrl+Alt+S'; stop_hotkey='Ctrl+Alt+Q'; voice_id=''; rate='0' }
+$settings = [ordered]@{ language_tag=''; capture_hotkey='Ctrl+Alt+A'; copy_hotkey='Ctrl+Alt+D'; cycle_hotkey='Ctrl+Alt+W'; selected_hotkey='Ctrl+Alt+S'; stop_hotkey='Ctrl+Alt+Q'; voice_id=''; rate='0' }
 if (Test-Path -LiteralPath $settingsPath) {
     foreach ($line in Get-Content -LiteralPath $settingsPath) {
         $parts = $line.Split('=', 2)

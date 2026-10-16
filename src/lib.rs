@@ -1,4 +1,5 @@
 mod clipboard;
+mod neural;
 mod selection;
 mod speech;
 mod tray;
@@ -70,7 +71,7 @@ const IDM_STOP: usize = 105;
 const IDM_VOICE_BASE: usize = 500;
 const IDM_COPY: usize = 106;
 const HOTKEY_COPY: i32 = 5;
-const DEFAULT_COPY_HOTKEY: &str = "Ctrl+Alt+C";
+const DEFAULT_COPY_HOTKEY: &str = "Ctrl+Alt+D";
 const WM_TEXT_READY: u32 = WM_APP + 6;
 const WM_OVERLAY_CLOSED: u32 = WM_APP + 7;
 const TIMER_RELEASE_SPEECH: usize = 3;
@@ -97,7 +98,7 @@ const IDM_LANGUAGE_BASE: usize = 300;
 const STARTUP_VALUE_NAME: &str = "InstaSpeak";
 const RUN_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
 const DEFAULT_CAPTURE_HOTKEY: &str = "Ctrl+Alt+A";
-const DEFAULT_CYCLE_HOTKEY: &str = "Ctrl+Alt+L";
+const DEFAULT_CYCLE_HOTKEY: &str = "Ctrl+Alt+W";
 
 pub fn app_main() -> AnyResult<()> {
     unsafe {
@@ -143,6 +144,36 @@ fn diagnostics(args: &[String]) -> AnyResult<()> {
             print_memory("before-speech");
             speech::benchmark()?;
             print_memory("after-speech");
+        }
+        Some("--benchmark-neural") => {
+            let mut speech = speech::Speech::new();
+            for i in 1..=3 {
+                println!("neural_run={i}");
+                speech.speak("InstaSpeak is ready.", neural::VOICE_ID, 0)?;
+                speech.wait(30_000)?;
+            }
+        }
+        Some("--set-voice") if args.len() == 2 => {
+            if !speech::voices()?.iter().any(|(id, _)| *id == args[1]) { return Err("Requested voice is not installed".into()); }
+            let mut settings = RustSettings::load();
+            settings.voice_id = args[1].clone();
+            settings.save();
+            println!("Voice selected: {}", settings.voice_id);
+        }
+        Some("--restore-ocr-hotkeys") => {
+            let mut settings = RustSettings::load();
+            settings.copy_hotkey = DEFAULT_COPY_HOTKEY.to_string();
+            settings.cycle_hotkey = DEFAULT_CYCLE_HOTKEY.to_string();
+            if let Some(base) = std::env::var_os("APPDATA") {
+                if let Ok(text) = fs::read_to_string(PathBuf::from(base).join("InstOCR").join("rust-settings.txt")) {
+                    for line in text.lines() {
+                        if let Some(value) = line.strip_prefix("capture_hotkey=") { settings.copy_hotkey = Hotkey::parse(value).map_err(std::io::Error::other)?.display; }
+                        if let Some(value) = line.strip_prefix("cycle_hotkey=") { settings.cycle_hotkey = Hotkey::parse(value).map_err(std::io::Error::other)?.display; }
+                    }
+                }
+            }
+            settings.save();
+            println!("OCR copy: {}; OCR language: {}", settings.copy_hotkey, settings.cycle_hotkey);
         }
         Some("--speak") if args.len() == 2 => {
             let settings = RustSettings::load();
@@ -265,6 +296,7 @@ fn run_resident_app(resident_warm: bool) -> AnyResult<()> {
 
     let hwnd = unsafe { create_hidden_window(app.as_mut() as *mut AppState)? };
     app.hwnd = hwnd;
+    app.speech.set_notify_window(hwnd);
     app.install_tray_icon();
     app.register_hotkeys();
     let _ = app
@@ -284,7 +316,10 @@ fn run_resident_app(resident_warm: bool) -> AnyResult<()> {
         SetTimer(hwnd, TIMER_IDLE_METRICS, 10_000, None);
     }
 
-    println!("Ready. Ctrl+Alt+A captures; Ctrl+Alt+L cycles OCR language.");
+    println!(
+        "Ready. {} copies OCR; {} reads OCR; {} cycles OCR language.",
+        app.settings.copy_hotkey, app.capture_hotkey.display, app.cycle_hotkey.display
+    );
 
     unsafe {
         let mut msg = MSG::default();

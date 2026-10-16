@@ -5,15 +5,40 @@ use windows::Win32::System::Com::{CoCreateInstance, CoTaskMemFree, CLSCTX_ALL};
 
 pub struct Speech {
     voice: Option<ISpVoice>,
+    neural: Option<super::neural::Speaker>,
+    using_neural: bool,
+    notify: isize,
 }
 
 impl Speech {
     pub fn new() -> Self {
-        Self { voice: None }
+        Self {
+            voice: None,
+            neural: None,
+            using_neural: false,
+            notify: 0,
+        }
+    }
+
+    pub fn set_notify_window(&mut self, hwnd: windows::Win32::Foundation::HWND) {
+        self.notify = hwnd.0 as isize;
     }
 
     pub fn speak(&mut self, text: &str, voice_id: &str, rate: i32) -> Result<f64> {
         let start = Instant::now();
+        self.stop();
+        self.using_neural = voice_id == super::neural::VOICE_ID;
+        if self.using_neural {
+            if super::neural::assets().is_none() {
+                return Err(windows::core::Error::new(
+                    windows::core::HRESULT(0x80004005u32 as i32),
+                    "Run Install Northern English Voice.cmd to install this voice.",
+                ));
+            }
+            let neural = self.neural.get_or_insert_with(super::neural::Speaker::new);
+            neural.speak(text, rate, self.notify)?;
+            return Ok(start.elapsed().as_secs_f64() * 1000.0);
+        }
         unsafe {
             if self.voice.is_none() {
                 self.voice = Some(CoCreateInstance(&SpVoice, None, CLSCTX_ALL)?);
@@ -42,6 +67,9 @@ impl Speech {
     }
 
     pub fn stop(&self) {
+        if let Some(neural) = &self.neural {
+            neural.stop();
+        }
         if let Some(voice) = &self.voice {
             unsafe {
                 let _ = voice.Speak(
@@ -54,6 +82,9 @@ impl Speech {
     }
 
     pub fn set_rate(&self, rate: i32) -> Result<()> {
+        if let Some(neural) = &self.neural {
+            neural.set_rate(rate);
+        }
         if let Some(voice) = &self.voice {
             unsafe {
                 voice.SetRate(rate)?;
@@ -74,6 +105,11 @@ impl Speech {
     }
 
     pub fn wait(&self, timeout_ms: u32) -> Result<()> {
+        if self.using_neural {
+            if let Some(neural) = &self.neural {
+                return neural.wait(timeout_ms);
+            }
+        }
         if let Some(voice) = &self.voice {
             unsafe {
                 voice.WaitUntilDone(timeout_ms)?;
@@ -176,6 +212,12 @@ pub fn voices() -> Result<Vec<(String, String)>> {
             result.push((id.to_string()?, label.to_string()?));
             CoTaskMemFree(Some(id.0 as _));
             CoTaskMemFree(Some(label.0 as _));
+        }
+        if super::neural::assets().is_some() {
+            result.push((
+                super::neural::VOICE_ID.to_string(),
+                super::neural::VOICE_NAME.to_string(),
+            ));
         }
         Ok(result)
     }

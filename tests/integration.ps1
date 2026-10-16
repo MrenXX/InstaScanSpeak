@@ -5,45 +5,7 @@ $artifacts = Join-Path $projectDir 'artifacts'
 New-Item -ItemType Directory -Force -Path $artifacts | Out-Null
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -Path (Join-Path $PSScriptRoot 'speed-evidence.cs') -ReferencedAssemblies System.Drawing
-Add-Type @'
-using System;
-using System.Runtime.InteropServices;
-public static class TestNative {
-    [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
-    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
-    [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hwnd,int cmd);
-    [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
-    [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hwnd,IntPtr processId);
-    [DllImport("user32.dll")] public static extern bool AttachThreadInput(uint from,uint to,bool attach);
-    [DllImport("user32.dll")] public static extern IntPtr SetFocus(IntPtr hwnd);
-    [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern IntPtr FindWindow(string cls, string title);
-    [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr hwnd,uint msg,IntPtr w,IntPtr l);
-    [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hwnd,uint msg,IntPtr w,IntPtr l);
-    [DllImport("user32.dll")] public static extern bool SetProcessDpiAwarenessContext(IntPtr value);
-    [DllImport("user32.dll")] public static extern uint GetClipboardSequenceNumber();
-    [DllImport("user32.dll")] public static extern uint SendInput(uint count, INPUT[] inputs, int size);
-    [StructLayout(LayoutKind.Sequential)] public struct INPUT { public uint type; public UNION data; }
-    [StructLayout(LayoutKind.Explicit)] public struct UNION { [FieldOffset(0)] public KEYBOARD keyboard; [FieldOffset(0)] public MOUSE mouse; }
-    [StructLayout(LayoutKind.Sequential)] public struct KEYBOARD { public ushort vk,scan; public uint flags,time; public UIntPtr extra; }
-    [StructLayout(LayoutKind.Sequential)] public struct MOUSE { public int x,y; public uint data,flags,time; public UIntPtr extra; }
-    public static void Hotkey(ushort key) {
-        ushort[] keys = {0x11,0x12,key,key,0x12,0x11};
-        INPUT[] input = new INPUT[6];
-        for (int i=0;i<6;i++) { input[i].type=1; input[i].data.keyboard.vk=keys[i]; input[i].data.keyboard.flags=i<3?0u:2u; }
-        if (SendInput(6,input,Marshal.SizeOf(typeof(INPUT))) != 6) throw new Exception("SendInput failed");
-    }
-    public static void FocusFixture(IntPtr form, IntPtr textBox) {
-        uint current = GetCurrentThreadId();
-        uint foreground = GetWindowThreadProcessId(GetForegroundWindow(),IntPtr.Zero);
-        uint target = GetWindowThreadProcessId(form,IntPtr.Zero);
-        AttachThreadInput(current,foreground,true);
-        AttachThreadInput(current,target,true);
-        try { SetForegroundWindow(form); SetFocus(textBox); }
-        finally { AttachThreadInput(current,target,false); AttachThreadInput(current,foreground,false); }
-        if (GetForegroundWindow() != form) throw new Exception("Could not focus the test fixture");
-    }
-}
-'@
+Add-Type -Path (Join-Path $PSScriptRoot 'native-test.cs')
 [TestNative]::SetProcessDpiAwarenessContext([IntPtr](-4)) | Out-Null
 $previous = [TestNative]::GetForegroundWindow()
 $statePath = Join-Path $artifacts 'fixture.json'
@@ -95,7 +57,7 @@ try {
     for ($i=0; $i -lt 13; $i++) { [TestNative]::SendMessage($slider,0x100,[IntPtr]0x27,[IntPtr]0) | Out-Null }
     Wait-For { (Get-Content -LiteralPath $testSettings -Raw) -match '(?m)^rate=3$' } 'intermediate speed'
     if ((Get-Content -LiteralPath $logPath -Raw) -notmatch 'speech_rate=3') { throw 'Live rate change did not reach speech controller' }
-    [SpeedEvidence]::Capture($speedWindow,(Join-Path $artifacts 'tray_panel_v0_3.png'))
+    [SpeedEvidence]::Capture($speedWindow,(Join-Path $artifacts 'tray_panel_v0_4.png'))
     [TestNative]::SendMessage($speedWindow,0x10,[IntPtr]0,[IntPtr]0) | Out-Null
     [TestNative]::PostMessage($mainWindow,0x8001,[IntPtr]1,[IntPtr]0x205) | Out-Null
     Wait-For { [TestNative]::FindWindow('InstaSpeakTrayPanel','InstaSpeak') -ne [IntPtr]::Zero } 'reopened speed slider'
@@ -151,7 +113,7 @@ try {
     }
     $beforeCopyCount = ([regex]::Matches((Get-Content -LiteralPath $logPath -Raw),'speech_queued_ms=')).Count
     [TestNative]::FocusFixture([IntPtr]$state.form,[IntPtr]$state.input)
-    [TestNative]::Hotkey(0x43)
+    [TestNative]::Hotkey(0x44)
     Wait-For { [TestNative]::FindWindow('InstaSpeakRustSelectionOverlay',$null) -ne [IntPtr]::Zero } 'copy-only capture hotkey'
     $overlay = [TestNative]::FindWindow('InstaSpeakRustSelectionOverlay',$null)
     $clipboardChanged = $true
@@ -197,6 +159,11 @@ try {
     [TestNative]::SendMessage($voicePicker,0x14E,[IntPtr]0,[IntPtr]0) | Out-Null
     [TestNative]::SendMessage($panel,0x111,[IntPtr](10 -bor (1 -shl 16)),$voicePicker) | Out-Null
     Wait-For { (Get-Content -LiteralPath $testSettings -Raw) -match '(?m)^voice_id=.+$' } 'voice selection from tray'
+    $initialVoice = Get-Content -LiteralPath $testSettings -Raw
+    [TestNative]::SendMessage($voicePicker,0x14F,[IntPtr]1,[IntPtr]0) | Out-Null
+    [TestNative]::SendMessage($voicePicker,0x100,[IntPtr]0x28,[IntPtr]0) | Out-Null
+    [TestNative]::SendMessage($voicePicker,0x100,[IntPtr]0x0D,[IntPtr]0) | Out-Null
+    Wait-For { [TestNative]::SendMessage($voicePicker,0x147,[IntPtr]0,[IntPtr]0).ToInt64() -eq 1 -and (Get-Content -LiteralPath $testSettings -Raw) -ne $initialVoice } 'voice dropdown keyboard selection'
     $languagePicker = [SpeedEvidence]::GetDlgItem($panel,11)
     [TestNative]::SendMessage($languagePicker,0x14E,[IntPtr]1,[IntPtr]0) | Out-Null
     [TestNative]::SendMessage($panel,0x111,[IntPtr](11 -bor (1 -shl 16)),$languagePicker) | Out-Null
@@ -205,6 +172,12 @@ try {
     [TestNative]::SendMessage($panel,0x111,[IntPtr](11 -bor (1 -shl 16)),$languagePicker) | Out-Null
     [TestNative]::PostMessage($panel,0x111,[IntPtr]2,[IntPtr]0) | Out-Null
     Write-Host 'PASS tray voice and OCR-language selectors'
+    [TestNative]::FocusFixture([IntPtr]$state.form,[IntPtr]$state.input)
+    [TestNative]::Hotkey(0x57)
+    Wait-For { (Get-Content -LiteralPath $testSettings -Raw) -match '(?m)^language_tag=.+$' } 'original Ctrl+Alt+W language shortcut'
+    if ((Get-Content -LiteralPath $logPath -Raw) -notmatch 'copy OCR text Ctrl\+Alt\+D') { throw 'Original copy shortcut was not registered' }
+    Write-Host 'PASS original Ctrl+Alt+D and Ctrl+Alt+W OCR shortcuts'
+
 
     [TestNative]::PostMessage([IntPtr]$state.form,0x10,[IntPtr]0,[IntPtr]0) | Out-Null
     $fixtureProcess.WaitForExit(5000) | Out-Null
