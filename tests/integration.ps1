@@ -81,8 +81,8 @@ try {
     Write-Host 'PASS registered selection hotkey to speech'
     $mainWindow = [TestNative]::FindWindow('InstaSpeakRustHiddenWindow',$null)
     [TestNative]::PostMessage($mainWindow,0x111,[IntPtr]600,[IntPtr]0) | Out-Null
-    Wait-For { [TestNative]::FindWindow('InstaSpeakSpeedWindow',$null) -ne [IntPtr]::Zero } 'speed slider'
-    $speedWindow = [TestNative]::FindWindow('InstaSpeakSpeedWindow',$null)
+    Wait-For { [TestNative]::FindWindow('InstaSpeakSpeedWindow','Reading speed') -ne [IntPtr]::Zero } 'speed slider'
+    $speedWindow = [TestNative]::FindWindow('InstaSpeakSpeedWindow','Reading speed')
     $slider = [SpeedEvidence]::GetDlgItem($speedWindow,1)
     if ($slider -eq [IntPtr]::Zero) { throw 'Native trackbar missing' }
     [TestNative]::SendMessage($slider,0x100,[IntPtr]0x23,[IntPtr]0) | Out-Null
@@ -95,15 +95,15 @@ try {
     [SpeedEvidence]::Capture($speedWindow,(Join-Path $artifacts 'speed_slider_v0_2.png'))
     [TestNative]::SendMessage($speedWindow,0x10,[IntPtr]0,[IntPtr]0) | Out-Null
     [TestNative]::PostMessage($mainWindow,0x111,[IntPtr]600,[IntPtr]0) | Out-Null
-    Wait-For { [TestNative]::FindWindow('InstaSpeakSpeedWindow',$null) -ne [IntPtr]::Zero } 'reopened speed slider'
-    $speedWindow = [TestNative]::FindWindow('InstaSpeakSpeedWindow',$null)
+    Wait-For { [TestNative]::FindWindow('InstaSpeakSpeedWindow','Reading speed') -ne [IntPtr]::Zero } 'reopened speed slider'
+    $speedWindow = [TestNative]::FindWindow('InstaSpeakSpeedWindow','Reading speed')
     $slider = [SpeedEvidence]::GetDlgItem($speedWindow,1)
     if ([TestNative]::SendMessage($slider,0x400,[IntPtr]0,[IntPtr]0).ToInt64() -ne 13) { throw 'Slider did not retain speed' }
     [TestNative]::SendMessage($slider,0x100,[IntPtr]0x24,[IntPtr]0) | Out-Null
     for ($i=0; $i -lt 10; $i++) { [TestNative]::SendMessage($slider,0x100,[IntPtr]0x27,[IntPtr]0) | Out-Null }
     Wait-For { (Get-Content -LiteralPath $testSettings -Raw) -match '(?m)^rate=0$' } 'normal speed reset'
     [TestNative]::PostMessage($speedWindow,0x111,[IntPtr]2,[IntPtr]0) | Out-Null
-    Wait-For { [TestNative]::FindWindow('InstaSpeakSpeedWindow',$null) -eq [IntPtr]::Zero } 'close speed slider'
+    Wait-For { [TestNative]::FindWindow('InstaSpeakSpeedWindow','Reading speed') -eq [IntPtr]::Zero } 'close speed slider'
     Write-Host 'PASS native speed slider, full range, live changes, saved settings, and reopen'
     [TestNative]::FocusFixture([IntPtr]$state.form,[IntPtr]$state.input)
     [TestNative]::Hotkey(0x51)

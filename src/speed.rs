@@ -182,7 +182,7 @@ unsafe extern "system" fn window_proc(
     if msg == WM_NCCREATE {
         let create = &*(lparam.0 as *const CREATESTRUCTW);
         SetWindowLongPtrW(hwnd, GWLP_USERDATA, create.lpCreateParams as isize);
-        return LRESULT(1);
+        return DefWindowProcW(hwnd, msg, wparam, lparam);
     }
     let ptr = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *mut State;
     let Some(state) = ptr.as_mut() else {
