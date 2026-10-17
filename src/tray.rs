@@ -16,6 +16,7 @@ pub const CHANGED: u32 = WM_APP + 8;
 pub const CLOSED: u32 = WM_APP + 9;
 const VOICE: usize = 10;
 const LANGUAGE: usize = 11;
+const OCR_ENGINE: usize = 12;
 
 pub struct Options {
     pub rate: i32,
@@ -23,6 +24,7 @@ pub struct Options {
     pub voice_index: usize,
     pub languages: Vec<String>,
     pub language_index: usize,
+    pub tiny_ocr: bool,
     pub startup: bool,
     pub read_hotkey: String,
     pub capture_hotkey: String,
@@ -63,9 +65,9 @@ pub fn show(owner: HWND, existing: Option<HWND>, options: &Options) -> Result<HW
             w!("InstaSpeak"),
             WS_POPUP | WS_BORDER,
             point.x - 360,
-            point.y - 470,
+            point.y - 500,
             360,
-            470,
+            500,
             None,
             None,
             None,
@@ -112,8 +114,8 @@ unsafe fn create_controls(
     .ok()?;
     let work = monitor.rcWork;
     let x = (point.x - scale(360)).clamp(work.left, (work.right - scale(360)).max(work.left));
-    let y = (point.y - scale(470)).clamp(work.top, (work.bottom - scale(470)).max(work.top));
-    SetWindowPos(hwnd, None, x, y, scale(360), scale(470), SWP_NOZORDER)?;
+    let y = (point.y - scale(500)).clamp(work.top, (work.bottom - scale(500)).max(work.top));
+    SetWindowPos(hwnd, None, x, y, scale(360), scale(500), SWP_NOZORDER)?;
     state.font = CreateFontW(
         -scale(14),
         0,
@@ -231,14 +233,30 @@ unsafe fn create_controls(
         60,
         20,
     )?;
+    let engines = vec![
+        "Windows OCR".to_string(),
+        if super::tiny::assets().is_some() {
+            "PP-OCRv6 Tiny"
+        } else {
+            "PP-OCRv6 Tiny (install required)"
+        }
+        .to_string(),
+    ];
     for (id, name, entries, selected, y) in [
-        (VOICE, "Voice", &options.voices, options.voice_index, 302),
+        (VOICE, "Voice", &options.voices, options.voice_index, 290),
+        (
+            OCR_ENGINE,
+            "OCR engine",
+            &engines,
+            usize::from(options.tiny_ocr),
+            344,
+        ),
         (
             LANGUAGE,
-            "OCR language",
+            "Windows OCR language",
             &options.languages,
             options.language_index,
-            365,
+            398,
         ),
     ] {
         control(w!("STATIC"), name, WINDOW_STYLE(0), 0, 16, y, 328, 22)?;
@@ -269,7 +287,7 @@ unsafe fn create_controls(
         WS_TABSTOP | WINDOW_STYLE(BS_AUTOCHECKBOX as u32),
         super::IDM_TOGGLE_STARTUP,
         16,
-        431,
+        460,
         240,
         26,
     )?;
@@ -285,7 +303,7 @@ unsafe fn create_controls(
         WS_TABSTOP,
         super::IDM_EXIT,
         274,
-        430,
+        459,
         70,
         28,
     )?;
@@ -326,13 +344,16 @@ unsafe extern "system" fn window_proc(
         WM_COMMAND => {
             let id = wparam.0 & 0xffff;
             let notification = (wparam.0 >> 16) as u32;
-            if (id == VOICE || id == LANGUAGE) && notification == CBN_SELCHANGE {
+            if (id == VOICE || id == LANGUAGE || id == OCR_ENGINE) && notification == CBN_SELCHANGE
+            {
                 let index = SendMessageW(HWND(lparam.0 as _), CB_GETCURSEL, WPARAM(0), LPARAM(0)).0;
                 if index >= 0 {
                     let command = if id == VOICE {
                         super::IDM_VOICE_BASE
-                    } else {
+                    } else if id == LANGUAGE {
                         super::IDM_LANGUAGE_BASE
+                    } else {
+                        super::IDM_OCR_ENGINE_BASE
                     } + index as usize;
                     let _ = PostMessageW(state.owner, WM_COMMAND, WPARAM(command), LPARAM(0));
                 }

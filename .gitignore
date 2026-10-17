@@ -1,4 +1,5 @@
 /target/
+/ocr-helper/target/
 /instocr-reference/
 /artifacts/
 *.zip

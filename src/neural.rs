@@ -155,9 +155,9 @@ struct Engine {
     output: BufReader<ChildStdout>,
     rate: i32,
 }
-struct Job(HANDLE);
+pub(crate) struct Job(HANDLE);
 impl Job {
-    fn new() -> Result<Self> {
+    pub(crate) fn new() -> Result<Self> {
         unsafe {
             let handle = CreateJobObjectW(None, PCWSTR::null())?;
             let job = Self(handle);
@@ -171,6 +171,9 @@ impl Job {
             )?;
             Ok(job)
         }
+    }
+    pub(crate) fn assign(&self, child: &Child) -> Result<()> {
+        unsafe { AssignProcessToJobObject(self.0, HANDLE(child.as_raw_handle() as _)) }
     }
 }
 impl Drop for Job {
@@ -253,9 +256,7 @@ fn start_engine(shared: &Shared, job: &Job, rate: i32, generation: u64) -> Resul
         .creation_flags(0x08000000)
         .spawn()
         .map_err(|e| error(&format!("Could not start Piper: {e}")))?;
-    if let Err(failure) =
-        unsafe { AssignProcessToJobObject(job.0, HANDLE(child.as_raw_handle() as _)) }
-    {
+    if let Err(failure) = job.assign(&child) {
         let _ = child.kill();
         let _ = child.wait();
         return Err(failure);

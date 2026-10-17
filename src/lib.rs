@@ -4,6 +4,7 @@ mod neural;
 mod ocr_tests;
 mod selection;
 mod speech;
+mod tiny;
 mod tray;
 
 use std::error::Error;
@@ -96,6 +97,7 @@ const IDM_TOGGLE_STARTUP: usize = 102;
 const IDM_LIST_LANGUAGES: usize = 103;
 const IDM_EXIT: usize = 199;
 const IDM_LANGUAGE_BASE: usize = 300;
+const IDM_OCR_ENGINE_BASE: usize = 600;
 
 const STARTUP_VALUE_NAME: &str = "InstaSpeak";
 const RUN_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
@@ -163,6 +165,19 @@ fn diagnostics(args: &[String]) -> AnyResult<()> {
             settings.save();
             println!("Voice selected: {}", settings.voice_id);
         }
+        Some("--set-ocr-engine") if args.len() == 2 => {
+            let use_tiny = match args[1].as_str() {"tiny"=>true,"windows"=>false,_=>return Err("Choose windows or tiny".into())};
+            if use_tiny && tiny::assets().is_none() {return Err("Run Install Tiny OCR.cmd first.".into());}
+            let mut settings = RustSettings::load();
+            settings.tiny_ocr = use_tiny;
+            settings.save();
+            println!("OCR engine selected: {}. Restart the tray app to apply.",args[1]);
+        }
+        Some("--check-tiny") => {
+            let control=std::sync::Arc::new(tiny::Control::default());
+            tiny::Engine::recognize(&mut None,&control,0,64,64,&vec![255;64*64*4])?;
+            println!("PP-OCRv6 Tiny is ready.");
+        }
         Some("--restore-ocr-hotkeys") => {
             let mut settings = RustSettings::load();
             settings.copy_hotkey = DEFAULT_COPY_HOTKEY.to_string();
@@ -201,10 +216,16 @@ fn diagnostics(args: &[String]) -> AnyResult<()> {
             let selected = crop_capture(&capture, RectI::new(x - capture.x, y - capture.y,
                 x.checked_add(w).ok_or("Rectangle overflow")? - capture.x,
                 y.checked_add(h).ok_or("Rectangle overflow")? - capture.y))?;
-            let mut ocr = OcrController::new()?;
-            ocr.set_current_language_tag(RustSettings::load().language_tag.as_deref());
-            let outcome = ocr.recognize_bgra(selected.width, selected.height, &selected.bgra)?;
-            println!("capture_ocr_ms={:.2}\n{}", elapsed_ms(start), outcome.text);
+            let settings = RustSettings::load();
+            let text = if settings.tiny_ocr {
+                let control = std::sync::Arc::new(tiny::Control::default());
+                tiny::Engine::recognize(&mut None,&control,0,selected.width,selected.height,&selected.bgra)?.0
+            } else {
+                let mut ocr = OcrController::new()?;
+                ocr.set_current_language_tag(settings.language_tag.as_deref());
+                ocr.recognize_bgra(selected.width, selected.height, &selected.bgra)?.text
+            };
+            println!("capture_ocr_ms={:.2}\n{}", elapsed_ms(start), text);
         }
         Some("--validate-hotkey") if args.len() == 2 => {
             println!("{}", Hotkey::parse(&args[1]).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, e))?.display);
@@ -404,6 +425,7 @@ struct RustSettings {
     copy_hotkey: String,
     voice_id: String,
     rate: i32,
+    tiny_ocr: bool,
 }
 
 impl Default for RustSettings {
@@ -417,6 +439,7 @@ impl Default for RustSettings {
             copy_hotkey: DEFAULT_COPY_HOTKEY.to_string(),
             voice_id: String::new(),
             rate: 0,
+            tiny_ocr: false,
         }
     }
 }
@@ -445,6 +468,8 @@ impl RustSettings {
                 settings.voice_id = value.trim().to_string();
             } else if let Some(value) = line.strip_prefix("rate=") {
                 settings.rate = value.trim().parse::<i32>().unwrap_or(0).clamp(-10, 10);
+            } else if let Some(value) = line.strip_prefix("ocr_engine=") {
+                settings.tiny_ocr = value.trim() == "tiny";
             } else if let Some(value) = line.strip_prefix("cycle_hotkey=") {
                 settings.cycle_hotkey = value.trim().to_string();
             }
@@ -511,8 +536,8 @@ impl RustSettings {
 
         let value = self.language_tag.as_deref().unwrap_or("");
         let text = format!(
-            "language_tag={value}\ncapture_hotkey={}\ncycle_hotkey={}\nselected_hotkey={}\nstop_hotkey={}\ncopy_hotkey={}\nvoice_id={}\nrate={}\n",
-            self.capture_hotkey, self.cycle_hotkey, self.selected_hotkey, self.stop_hotkey, self.copy_hotkey, self.voice_id, self.rate
+            "language_tag={value}\ncapture_hotkey={}\ncycle_hotkey={}\nselected_hotkey={}\nstop_hotkey={}\ncopy_hotkey={}\nvoice_id={}\nrate={}\nocr_engine={}\n",
+            self.capture_hotkey, self.cycle_hotkey, self.selected_hotkey, self.stop_hotkey, self.copy_hotkey, self.voice_id, self.rate, if self.tiny_ocr {"tiny"} else {"windows"}
         );
         let _ = fs::write(path, text);
     }
@@ -797,6 +822,7 @@ impl AppState {
     }
 
     fn start_capture(&mut self, action: CaptureAction) {
+        self.worker.control.cancel();
         self.close_tray();
         if action == CaptureAction::Read {
             self.stop_reading();
@@ -884,7 +910,10 @@ impl AppState {
             return;
         }
         self.update_status("Running OCR...");
-        if let Err(error) = self.worker.recognize(self.hwnd, selected) {
+        if let Err(error) = self
+            .worker
+            .recognize(self.hwnd, selected, self.settings.tiny_ocr)
+        {
             eprintln!("failed to queue OCR work: {error}");
             self.update_status("OCR queue failed");
         }
@@ -933,6 +962,7 @@ impl AppState {
 
     fn stop_reading(&mut self) {
         self.request_id = self.request_id.wrapping_add(1);
+        self.worker.control.cancel();
         self.speech.stop();
         if let Some(hwnd) = self.overlay.take() {
             unsafe {
@@ -1014,6 +1044,7 @@ impl AppState {
                 .collect(),
             languages,
             language_index: self.ocr.current_index(),
+            tiny_ocr: self.settings.tiny_ocr,
             startup: is_startup_enabled(),
             read_hotkey: self.settings.selected_hotkey.clone(),
             capture_hotkey: self.capture_hotkey.display.clone(),
@@ -1073,21 +1104,26 @@ impl AppState {
 
 struct OcrWorker {
     tx: Sender<OcrCommand>,
+    control: std::sync::Arc<tiny::Control>,
 }
 
 impl OcrWorker {
     fn start() -> Self {
         let (tx, rx) = mpsc::channel::<OcrCommand>();
+        let control = std::sync::Arc::new(tiny::Control::default());
+        let state = control.clone();
         thread::spawn(move || {
             let mut com_initialized = false;
             let mut controller: Option<OcrController> = None;
             let mut desired_index = 0usize;
+            let mut tiny_engine = None;
 
             loop {
                 let command = match rx.recv_timeout(std::time::Duration::from_secs(30)) {
                     Ok(command) => command,
                     Err(mpsc::RecvTimeoutError::Timeout) => {
                         controller = None;
+                        tiny_engine = None;
                         continue;
                     }
                     Err(mpsc::RecvTimeoutError::Disconnected) => break,
@@ -1125,7 +1161,49 @@ impl OcrWorker {
                             post_worker_status(hwnd_raw, "OCR warmup failed".to_string());
                         }
                     }
-                    OcrCommand::Recognize { hwnd_raw, selected } => {
+                    OcrCommand::Recognize {
+                        hwnd_raw,
+                        selected,
+                        use_tiny,
+                        generation,
+                    } => {
+                        if generation != state.generation() {
+                            continue;
+                        }
+                        if use_tiny {
+                            controller = None;
+                            let start = Instant::now();
+                            let result = tiny::Engine::recognize(
+                                &mut tiny_engine,
+                                &state,
+                                generation,
+                                selected.width,
+                                selected.height,
+                                &selected.bgra,
+                            );
+                            println!("ocr_engine=tiny total_ms={:.2}", elapsed_ms(start));
+                            let result = result
+                                .map(|(text, ms)| OcrWorkerSuccess {
+                                    outcome: OcrTiming {
+                                        text,
+                                        convert_ms: 0.0,
+                                        engine_ms: 0.0,
+                                        ocr_ms: ms,
+                                        total_ms: elapsed_ms(start),
+                                    },
+                                })
+                                .map_err(|e| e.to_string());
+                            post_boxed(
+                                hwnd_raw,
+                                WM_OCR_DONE,
+                                OcrWorkerResult {
+                                    request_id: selected.request_id,
+                                    result,
+                                },
+                            );
+                            continue;
+                        }
+                        tiny_engine = None;
                         if let Some(ocr) = ensure_worker_controller(
                             &mut controller,
                             &mut com_initialized,
@@ -1152,7 +1230,7 @@ impl OcrWorker {
             }
         });
 
-        Self { tx }
+        Self { tx, control }
     }
 
     fn warm_current(&self, hwnd: HWND) -> std::result::Result<(), mpsc::SendError<OcrCommand>> {
@@ -1178,16 +1256,20 @@ impl OcrWorker {
         &self,
         hwnd: HWND,
         selected: SelectedImage,
+        use_tiny: bool,
     ) -> std::result::Result<(), mpsc::SendError<OcrCommand>> {
         self.tx.send(OcrCommand::Recognize {
             hwnd_raw: hwnd.0 as isize,
             selected,
+            use_tiny,
+            generation: self.control.generation(),
         })
     }
 }
 
 impl Drop for OcrWorker {
     fn drop(&mut self) {
+        self.control.unload();
         let _ = self.tx.send(OcrCommand::Shutdown);
     }
 }
@@ -1204,6 +1286,8 @@ enum OcrCommand {
     Recognize {
         hwnd_raw: isize,
         selected: SelectedImage,
+        use_tiny: bool,
+        generation: u64,
     },
     Shutdown,
 }
@@ -1449,6 +1533,25 @@ unsafe extern "system" fn hidden_wnd_proc(
                     }
                     id if id >= IDM_LANGUAGE_BASE && id < IDM_LANGUAGE_BASE + 100 => {
                         app.set_language_index(id - IDM_LANGUAGE_BASE);
+                    }
+                    id if id == IDM_OCR_ENGINE_BASE || id == IDM_OCR_ENGINE_BASE + 1 => {
+                        let use_tiny = id == IDM_OCR_ENGINE_BASE + 1;
+                        if use_tiny && tiny::assets().is_none() {
+                            app.close_tray();
+                            app.show_status_popup(
+                                "Run Install Tiny OCR.cmd to install PP-OCRv6 Tiny.",
+                            );
+                        } else {
+                            app.stop_reading();
+                            app.worker.control.unload();
+                            app.settings.tiny_ocr = use_tiny;
+                            app.settings.save();
+                            app.update_status(if use_tiny {
+                                "OCR engine: PP-OCRv6 Tiny"
+                            } else {
+                                "OCR engine: Windows OCR"
+                            });
+                        }
                     }
                     _ => {}
                 }
