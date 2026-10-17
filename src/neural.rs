@@ -8,10 +8,14 @@ use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU64, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
-use windows::core::{Error, Result, HRESULT, PCWSTR};
+use windows::core::{Error, Result, HRESULT, PCWSTR, PSTR};
 use windows::Win32::Foundation::{CloseHandle, HANDLE};
-use windows::Win32::Media::Audio::{PlaySoundW, SND_ASYNC, SND_MEMORY, SND_NODEFAULT, SND_SYNC};
+use windows::Win32::Media::Audio::{
+    waveOutClose, waveOutOpen, waveOutPrepareHeader, waveOutReset, waveOutUnprepareHeader,
+    waveOutWrite, CALLBACK_EVENT, HWAVEOUT, WAVEFORMATEX, WAVEHDR, WAVE_MAPPER, WHDR_DONE,
+};
 use windows::Win32::System::JobObjects::*;
+use windows::Win32::System::Threading::{CreateEventW, WaitForSingleObject, INFINITE};
 
 pub const VOICE_ID: &str = "piper:northern-english-male";
 pub const VOICE_NAME: &str = "Northern English Male - English (UK)";
@@ -47,6 +51,7 @@ struct Shared {
     rate: AtomicI32,
     busy: AtomicBool,
     error: Mutex<Option<String>>,
+    playback: Mutex<Option<usize>>,
 }
 
 impl Shared {
@@ -58,9 +63,12 @@ impl Shared {
     }
 
     fn cancel(&self) {
+        let playback = self.playback.lock().unwrap();
         self.generation.fetch_add(1, Ordering::SeqCst);
-        unsafe {
-            let _ = PlaySoundW(PCWSTR::null(), None, SND_ASYNC);
+        if let Some(device) = *playback {
+            unsafe {
+                waveOutReset(HWAVEOUT(device as _));
+            }
         }
         if self.busy.swap(false, Ordering::SeqCst) {
             self.kill();
@@ -90,6 +98,7 @@ impl Speaker {
             rate: AtomicI32::new(0),
             busy: AtomicBool::new(false),
             error: Mutex::new(None),
+            playback: Mutex::new(None),
         });
         let (tx, rx) = mpsc::channel();
         let state = shared.clone();
@@ -200,6 +209,7 @@ fn worker(rx: mpsc::Receiver<Request>, shared: Arc<Shared>) {
             Ok(job) => read(&text, generation, &shared, &mut engine, job),
             Err(failure) => Err(error(&format!("Could not manage voice helper: {failure}"))),
         };
+        let _playback = shared.playback.lock().unwrap();
         if generation == shared.generation.load(Ordering::SeqCst) {
             if let Err(failure) = result {
                 shared.kill();
@@ -311,23 +321,115 @@ fn read(
                     start.elapsed().as_secs_f64() * 1000.0
                 );
             }
-            if !unsafe {
-                PlaySoundW(
-                    PCWSTR(audio.as_ptr() as _),
-                    None,
-                    SND_MEMORY | SND_SYNC | SND_NODEFAULT,
-                )
-            }
-            .as_bool()
-            {
-                return Err(error("Windows could not play the generated speech"));
-            }
+            play_audio(&audio, generation, shared)?;
             Ok(())
         })();
         let _ = fs::remove_file(&file);
         operation?;
     }
     Ok(())
+}
+
+fn wave_parts(audio: &[u8]) -> Result<(WAVEFORMATEX, &[u8])> {
+    if audio.get(..4) != Some(b"RIFF") || audio.get(8..12) != Some(b"WAVE") {
+        return Err(error("Voice helper produced an invalid WAV file"));
+    }
+    let mut format = None;
+    let mut data = None;
+    let mut offset = 12usize;
+    while let Some(header) = audio.get(offset..offset + 8) {
+        let length = u32::from_le_bytes(header[4..8].try_into().unwrap()) as usize;
+        let start = offset + 8;
+        let Some(chunk) = audio.get(start..start.saturating_add(length)) else {
+            break;
+        };
+        match &header[..4] {
+            b"fmt " if length >= 16 => {
+                let word = |i| u16::from_le_bytes(chunk[i..i + 2].try_into().unwrap());
+                let dword = |i| u32::from_le_bytes(chunk[i..i + 4].try_into().unwrap());
+                format = Some(WAVEFORMATEX {
+                    wFormatTag: word(0),
+                    nChannels: word(2),
+                    nSamplesPerSec: dword(4),
+                    nAvgBytesPerSec: dword(8),
+                    nBlockAlign: word(12),
+                    wBitsPerSample: word(14),
+                    cbSize: 0,
+                });
+            }
+            b"data" => data = Some(chunk),
+            _ => {}
+        }
+        offset = start + length + (length & 1);
+    }
+    match (format, data) {
+        (Some(format), Some(data)) if format.wFormatTag == 1 && !data.is_empty() => {
+            Ok((format, data))
+        }
+        _ => Err(error("Voice helper produced unsupported WAV audio")),
+    }
+}
+
+fn play_audio(audio: &[u8], generation: u64, shared: &Shared) -> Result<()> {
+    let (format, samples) = wave_parts(audio)?;
+    unsafe {
+        let event = CreateEventW(None, false, false, PCWSTR::null())?;
+        let mut device = HWAVEOUT::default();
+        let mut header = Box::new(WAVEHDR {
+            lpData: PSTR(samples.as_ptr() as _),
+            dwBufferLength: samples.len() as u32,
+            ..Default::default()
+        });
+        let size = std::mem::size_of::<WAVEHDR>() as u32;
+        let mut prepared = false;
+        let result = (|| {
+            // Serialize submission and reset so cancelled sections cannot start after Stop.
+            let mut slot = shared.playback.lock().unwrap();
+            if generation != shared.generation.load(Ordering::SeqCst) {
+                return Ok(());
+            }
+            audio_result(waveOutOpen(
+                Some(&mut device),
+                WAVE_MAPPER,
+                &format,
+                event.0 as usize,
+                0,
+                CALLBACK_EVENT,
+            ))?;
+            *slot = Some(device.0 as usize);
+            audio_result(waveOutPrepareHeader(device, &mut *header, size))?;
+            prepared = true;
+            audio_result(waveOutWrite(device, &mut *header, size))?;
+            drop(slot);
+            println!("neural_audio_started={generation}");
+            while std::ptr::read_volatile(&*header).dwFlags & WHDR_DONE == 0 {
+                if WaitForSingleObject(event, INFINITE) == windows::Win32::Foundation::WAIT_FAILED {
+                    return Err(Error::from_win32());
+                }
+            }
+            Ok(())
+        })();
+        let mut slot = shared.playback.lock().unwrap();
+        if !device.is_invalid() {
+            waveOutReset(device);
+            if prepared {
+                waveOutUnprepareHeader(device, &mut *header, size);
+            }
+            waveOutClose(device);
+            *slot = None;
+            println!("neural_audio_stopped={generation}");
+        }
+        let _ = CloseHandle(event);
+        result
+    }
+}
+
+fn audio_result(code: u32) -> Result<()> {
+    if code == 0 {
+        Ok(())
+    } else {
+        Err(error(&format!("Windows audio error {code}")))
+    }
 }
 
 fn sections(text: &str) -> Vec<String> {
@@ -355,4 +457,67 @@ fn sections(text: &str) -> Vec<String> {
 
 fn error(message: &str) -> Error {
     Error::new(HRESULT(0x80004005u32 as i32), message)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[ignore = "requires a Windows audio output device"]
+    fn stop_interrupts_audio_playback() {
+        let shared = Arc::new(Shared {
+            child: Mutex::new(None),
+            generation: AtomicU64::new(0),
+            rate: AtomicI32::new(0),
+            busy: AtomicBool::new(true),
+            error: Mutex::new(None),
+            playback: Mutex::new(None),
+        });
+        let mut wav = Vec::new();
+        let bytes = 22050u32 * 2 * 4;
+        wav.extend_from_slice(b"RIFF");
+        wav.extend_from_slice(&(36 + bytes).to_le_bytes());
+        wav.extend_from_slice(b"WAVEfmt ");
+        wav.extend_from_slice(&16u32.to_le_bytes());
+        wav.extend_from_slice(&1u16.to_le_bytes());
+        wav.extend_from_slice(&1u16.to_le_bytes());
+        wav.extend_from_slice(&22050u32.to_le_bytes());
+        wav.extend_from_slice(&44100u32.to_le_bytes());
+        wav.extend_from_slice(&2u16.to_le_bytes());
+        wav.extend_from_slice(&16u16.to_le_bytes());
+        wav.extend_from_slice(b"data");
+        wav.extend_from_slice(&bytes.to_le_bytes());
+        wav.resize(44 + bytes as usize, 0);
+        let cancelled_wav = wav.clone();
+        let (tx, rx) = mpsc::channel();
+        let state = shared.clone();
+        let worker = thread::spawn(move || {
+            tx.send(play_audio(&wav, 0, &state)).unwrap();
+        });
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while shared.playback.lock().unwrap().is_none() {
+            assert!(Instant::now() < deadline, "audio did not start");
+            thread::sleep(Duration::from_millis(1));
+        }
+        thread::sleep(Duration::from_millis(100));
+        let start = Instant::now();
+        shared.cancel();
+        let stopped = rx.recv_timeout(Duration::from_millis(250));
+        worker.join().unwrap();
+        stopped.expect("audio continued after Stop").unwrap();
+        println!(
+            "audio_stop_ms={:.2}",
+            start.elapsed().as_secs_f64() * 1000.0
+        );
+        // Stop must also suppress a section which has not submitted its audio yet.
+        play_audio(&cancelled_wav, 0, &shared).unwrap();
+        assert!(shared.playback.lock().unwrap().is_none());
+    }
+
+    #[test]
+    fn invalid_wav_is_rejected() {
+        assert!(wave_parts(b"not a wave file").is_err());
+        assert!(wave_parts(b"RIFF\x00\x00\x00\x00WAVEdata\xff\xff\xff\xff").is_err());
+    }
 }

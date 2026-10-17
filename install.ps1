@@ -30,6 +30,8 @@ $shortcut.TargetPath = $app
 $shortcut.WorkingDirectory = $installDir
 $shortcut.Description = 'Copy screen text or read text aloud'
 $shortcut.Save()
+& $cli --version
+if ($LASTEXITCODE -ne 0) { throw 'Installed app verification failed.' }
 if (!$NoStart) { Start-Process -FilePath $app -WindowStyle Hidden }
 Write-Host "Installed to $installDir. Starts at login."
 Write-Host 'Read selection: Ctrl+Alt+S. Read screen region: Ctrl+Alt+A. Stop: Ctrl+Alt+Q.'

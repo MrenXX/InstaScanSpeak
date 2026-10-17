@@ -1,5 +1,7 @@
 mod clipboard;
 mod neural;
+#[cfg(test)]
+mod ocr_tests;
 mod selection;
 mod speech;
 mod tray;
@@ -136,6 +138,7 @@ pub fn diagnostics_main() -> AnyResult<()> {
 
 fn diagnostics(args: &[String]) -> AnyResult<()> {
     match args.first().map(String::as_str) {
+        Some("--version") => println!("InstaSpeak {}\n{}", env!("CARGO_PKG_VERSION"), std::env::current_exe()?.display()),
         Some("--list-voices") => {
             for (id, label) in speech::voices()? { println!("{label}\t{id}"); }
         }
@@ -261,7 +264,7 @@ fn run() -> AnyResult<()> {
 
 fn run_resident_app(resident_warm: bool) -> AnyResult<()> {
     let _single_instance = SingleInstanceGuard::acquire()?;
-    println!("InstaSpeak Rust native prototype starting.");
+    println!("InstaSpeak {} starting.", env!("CARGO_PKG_VERSION"));
     println!(
         "mode: {}",
         if resident_warm {

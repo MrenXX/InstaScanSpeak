@@ -13,6 +13,7 @@ jobs:
           components: rustfmt
       - run: cargo fmt --check
       - run: cargo build --release --locked
+      - run: cargo test --release --locked
       - run: ./target/release/instaspeak-cli.exe --validate-hotkey Ctrl+Alt+S
       - uses: actions/upload-artifact@v4
         with:

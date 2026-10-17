@@ -62,6 +62,15 @@ public static class NeuralFixtureText {
     [NeuralFixtureText]::SetWindowText([IntPtr]$state.input,('This is a longer passage used to verify that speech can be stopped without waiting for the full text to finish. ' * 60)) | Out-Null
     if ([TestNative]::SendMessage([IntPtr]$state.input,0xE,[IntPtr]0,[IntPtr]0).ToInt64() -lt 500) { throw 'Long-text fixture was not initialized' }
     $readyCount = ([regex]::Matches((Get-Content -LiteralPath $logPath -Raw),'neural_audio_ready_ms=')).Count
+    $startedCount = ([regex]::Matches((Get-Content -LiteralPath $logPath -Raw),'neural_audio_started=')).Count
+    Read-Selected
+    Wait-For { (Last-Helper) -ne $helperId -and (Get-Process -Id (Last-Helper) -ErrorAction SilentlyContinue) } 'cold synthesis startup'
+    $coldHelper = Last-Helper
+    [TestNative]::Hotkey(0x51)
+    Wait-For { !(Get-Process -Id $coldHelper -ErrorAction SilentlyContinue) } 'Stop during synthesis'
+    Start-Sleep -Milliseconds 300
+    if (([regex]::Matches((Get-Content -LiteralPath $logPath -Raw),'neural_audio_started=')).Count -ne $startedCount) { throw 'Cancelled synthesis started audio' }
+    Write-Host 'PASS Ctrl+Alt+Q cancels synthesis before playback'
     Read-Selected
     Wait-For { ([regex]::Matches((Get-Content -LiteralPath $logPath -Raw),'neural_audio_ready_ms=')).Count -gt $readyCount } 'long neural reading'
     $helperBeforeRate = Last-Helper
@@ -70,10 +79,20 @@ public static class NeuralFixtureText {
     Wait-For { (Last-Helper) -ne $helperBeforeRate -and (Get-Content -LiteralPath $logPath -Raw) -match 'neural_rate=4' } 'pitch-preserving rate change at the next section' 20
     Write-Host 'PASS neural speed changes take effect at the next section'
     $helperId = Last-Helper
+    $beforeRateAudio = ([regex]::Matches((Get-Content -LiteralPath $logPath -Raw),'neural_audio_started=')).Count
+    Wait-For { ([regex]::Matches((Get-Content -LiteralPath $logPath -Raw),'neural_audio_started=')).Count -gt $beforeRateAudio } 'native audio submission after speed change' 20
+    $audioStarts = [regex]::Matches((Get-Content -LiteralPath $logPath -Raw),'neural_audio_started=(\d+)')
+    $audioCount = $audioStarts.Count
     $stopwatch = [Diagnostics.Stopwatch]::StartNew()
     [TestNative]::Hotkey(0x51)
     Wait-For { !(Get-Process -Id $helperId -ErrorAction SilentlyContinue) } 'neural stop'
-    Write-Host "PASS stop cancels neural helper in $([math]::Round($stopwatch.Elapsed.TotalMilliseconds)) ms"
+    Wait-For { ([regex]::Matches((Get-Content -LiteralPath $logPath -Raw),'neural_audio_stopped=')).Count -ge $audioCount } 'audio device stop'
+    if ($stopwatch.Elapsed.TotalMilliseconds -gt 500) { throw 'Stop took more than 500 ms' }
+    $audioCount = ([regex]::Matches((Get-Content -LiteralPath $logPath -Raw),'neural_audio_started=')).Count
+    Write-Host "PASS Ctrl+Alt+Q stops playback and synthesis in $([math]::Round($stopwatch.Elapsed.TotalMilliseconds)) ms"
+    [TestNative]::Hotkey(0x51)
+    Start-Sleep -Milliseconds 300
+    if (([regex]::Matches((Get-Content -LiteralPath $logPath -Raw),'neural_audio_started=')).Count -ne $audioCount) { throw 'Audio restarted after Stop' }
     [NeuralFixtureText]::SetWindowText([IntPtr]$state.input,'Selected text is read aloud by InstaSpeak.') | Out-Null
     $finishedCount = ([regex]::Matches((Get-Content -LiteralPath $logPath -Raw),'neural_finished=true')).Count
     Read-Selected

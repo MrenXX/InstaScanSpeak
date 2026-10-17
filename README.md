@@ -12,6 +12,8 @@ Download the Windows ZIP from [Releases](https://github.com/MrenXX/instaspeak-ru
 
 The installer copies the app to `%LOCALAPPDATA%\InstaSpeak`, adds a Start menu shortcut, enables startup at login, and launches the tray app. It does not need administrator rights.
 
+To update a source checkout, run `git pull`, `build.ps1`, then `install.ps1`. A pull alone does not replace the installed app. Check the installed build with `& "$env:LOCALAPPDATA\InstaSpeak\instaspeak-cli.exe" --version`. The installer also prints its installed version and path. Settings and downloaded voices survive updates.
+
 To run without installing, open `dist\windows-x64\instaspeak.exe`.
 
 To add Northern English Male, run `Install Northern English Voice.cmd` after installing the app. It downloads a verified 63 MB voice model and a 22 MB native runtime directly from their upstream projects, selects the voice, and restarts an active installed app. Later reads work offline. The model and runtime stay installed across app updates and are not bundled into the small app ZIP.
@@ -36,6 +38,8 @@ The copy and language shortcuts are the original InstOCR defaults. Exit the stan
 Installed Windows SAPI voices, such as David, Zira, and Hortense, remain available. They use less memory while speaking. The list can differ from Narrator or Windows speech settings.
 
 Northern English Male is an optional English UK neural voice. Its helper starts on the first read, stays warm for repeat reads, and exits after 30 seconds idle. Stop cancels synthesis and playback. The helper also exits if the app is terminated, so a model process does not remain in the background. Only the selected voice is loaded.
+
+Version 0.4.1 fixes Stop during neural audio playback. It resets the Windows audio output and prevents cancelled sections from starting afterward. Earlier versions could leave a synchronous audio section playing after the voice helper had stopped.
 
 Highlighted text works with standard Windows edit controls and apps that expose their selection through UI Automation. Some custom controls, browsers, PDF viewers, and elevated apps may not expose it. Use screen capture in those cases. Read-aloud actions leave the clipboard unchanged. Only copy-only capture writes recognized text to it.
 
@@ -75,11 +79,13 @@ powershell -NoProfile -STA -ExecutionPolicy Bypass -File .\tests\neural.ps1
 
 The integration test opens temporary Windows forms and starts a diagnostic tray instance with isolated settings. Exit any running InstaSpeak instance first. It tests selected text, registered hotkeys, the inline tray slider and saved rate, live changes, popup dismissal, both capture actions, OCR, speech, cancellation, clipboard behavior, and memory after idle. It restores the original clipboard after testing copy-only capture. It requires an unlocked desktop with an audio output device. Avoid interacting with the desktop while it runs.
 
-The neural test requires the optional voice. It checks real playback, warm model reuse, idle unloading, rate changes, stop responsiveness, and cleanup after an abrupt parent-process exit.
+The neural test requires the optional voice. It checks real playback, warm model reuse, idle unloading, rate changes, cancellation during synthesis and playback, no audio restarting after Stop, and cleanup after an abrupt parent-process exit. The ignored `stop_interrupts_audio_playback` Rust test independently verifies that Stop releases the audio device within 250 ms.
 
-Other diagnostics include `--speak TEXT`, `--read-selection`, `--capture-rect X Y W H`, `--validate-hotkey HOTKEY`, `--set-voice ID`, `--restore-ocr-hotkeys`, and `--trigger selected|capture|copy|stop|exit`. Rectangle coordinates use physical pixels. `--resident` runs the tray app with console diagnostics. Diagnostics print recognized or selected text when explicitly requested. The neural helper writes temporary audio files and the app deletes them before playback.
+Other diagnostics include `--version`, `--speak TEXT`, `--read-selection`, `--capture-rect X Y W H`, `--validate-hotkey HOTKEY`, `--set-voice ID`, `--restore-ocr-hotkeys`, and `--trigger selected|capture|copy|stop|exit`. Rectangle coordinates use physical pixels. `--resident` runs the tray app with console diagnostics. Diagnostics print recognized or selected text when explicitly requested. The neural helper writes temporary audio files and the app deletes them before playback.
 
 To uninstall, run `uninstall.ps1`. Settings remain in your AppData folder.
+
+For the small-font OCR comparison and reproducible benchmark commands, see [OCR comparison](docs/ocr-comparison.md). The alternative models remain benchmark candidates and are not loaded or installed by the app.
 
 ## Credits
 

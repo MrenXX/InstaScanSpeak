@@ -1,0 +1,174 @@
+{
+  "date": "2026-10-17",
+  "cpu": "AMD Ryzen 5 7600",
+  "engines": [
+    {
+      "key": "windows",
+      "name": "Windows OCR",
+      "model_mib": 0,
+      "groups": {
+        "all": {
+          "cer": 21.08,
+          "ms": 19.8,
+          "errors": 1447,
+          "characters": 6864,
+          "samples": 48
+        },
+        "prose": {
+          "cer": 6.18,
+          "ms": 19.8,
+          "errors": 227,
+          "characters": 3672,
+          "samples": 24
+        },
+        "stress": {
+          "cer": 38.22,
+          "ms": 20.2,
+          "errors": 1220,
+          "characters": 3192,
+          "samples": 24
+        },
+        "small": {
+          "cer": 26.02,
+          "ms": 16.8,
+          "errors": 893,
+          "characters": 3432,
+          "samples": 24
+        }
+      },
+      "samples": {
+        "SegoeUI-11-light": "I will install 11 little files in folder Ill, not 111.\r\nInvoice IL-101: total 101.11 USD. Call Lily at 0118 123 4567.",
+        "Consolas-11-dark": "I will install 11 little files in\r\nInvoice IL-lei: total lei.ll USD.\r\nif (limit\r\nfolder Ill, not 111.\r\ncall Lily at 0118 123 4567.\r\n} // line WI",
+        "Arial-9-light-prose": "Small print shouZ remain in a dark wind.\"'.\r\nPlease bring 12 copies of the report to the library at 11:30.\r\nThe buiZing has brtht windows and a quiet little garden."
+      }
+    },
+    {
+      "key": "tesseract-native",
+      "name": "Tesseract 5.5",
+      "model_mib": 3.92,
+      "groups": {
+        "all": {
+          "cer": 2.71,
+          "ms": 60.0,
+          "errors": 186,
+          "characters": 6864,
+          "samples": 48
+        },
+        "prose": {
+          "cer": 0.3,
+          "ms": 62.1,
+          "errors": 11,
+          "characters": 3672,
+          "samples": 24
+        },
+        "stress": {
+          "cer": 5.48,
+          "ms": 52.8,
+          "errors": 175,
+          "characters": 3192,
+          "samples": 24
+        },
+        "small": {
+          "cer": 3.38,
+          "ms": 53.3,
+          "errors": 116,
+          "characters": 3432,
+          "samples": 24
+        }
+      },
+      "samples": {
+        "SegoeUI-11-light": "| will install 11 little files in folder 11], not 111.\nInvoice IL-101: total 101.11 USD, Call Lily at 0118 123 4567.\nif (limit == 1) { fileld = \u201cITI; } // line 101",
+        "Consolas-11-dark": "I will install 11 little files in folder 111, not 111.\nInvoice IL-101: total 101.11 USD. Call Lily at 0118 123 4567.\nif (limit == 1) { fileId = \"11111\"; } // line 101",
+        "Arial-9-light-prose": "Smail print should remain readable in a dark browser window.\nPlease bring 12 copies of the report to the library at 11:20.\nThe old building has bright windows and a quiet little garden."
+      }
+    },
+    {
+      "key": "tiny",
+      "name": "PP-OCRv6 Tiny",
+      "model_mib": 6.03,
+      "groups": {
+        "all": {
+          "cer": 1.62,
+          "ms": 59.3,
+          "errors": 111,
+          "characters": 6864,
+          "samples": 48
+        },
+        "prose": {
+          "cer": 0.19,
+          "ms": 60.5,
+          "errors": 7,
+          "characters": 3672,
+          "samples": 24
+        },
+        "stress": {
+          "cer": 3.26,
+          "ms": 54.7,
+          "errors": 104,
+          "characters": 3192,
+          "samples": 24
+        },
+        "small": {
+          "cer": 2.04,
+          "ms": 50.2,
+          "errors": 70,
+          "characters": 3432,
+          "samples": 24
+        }
+      },
+      "samples": {
+        "SegoeUI-11-light": "I will install 11 little files in folder 111, not 111.\nInvoice IL-101: total 101.11 USD. Call Lily at 0118123 4567.\nif (limit == 1) {fileld = I11Il'; }// line 101",
+        "Consolas-11-dark": "I will install 11 little files in folder I1l, not 111.\nInvoice IL-101:total 101.11 USD. Call Lily at 0118 123 4567.\nif (limit == 1) {fileId = \"I11lr\";}// line 101",
+        "Arial-9-light-prose": "Small print should remain readable in a dark browser window.\nPlease bring 12 copies of the report to the library at 11:30.\nThe old building has bright windows and a quiet little garden."
+      }
+    },
+    {
+      "key": "small",
+      "name": "PP-OCRv6 Small",
+      "model_mib": 29.72,
+      "groups": {
+        "all": {
+          "cer": 1.08,
+          "ms": 171.5,
+          "errors": 74,
+          "characters": 6864,
+          "samples": 48
+        },
+        "prose": {
+          "cer": 0.03,
+          "ms": 173.4,
+          "errors": 1,
+          "characters": 3672,
+          "samples": 24
+        },
+        "stress": {
+          "cer": 2.29,
+          "ms": 171.2,
+          "errors": 73,
+          "characters": 3192,
+          "samples": 24
+        },
+        "small": {
+          "cer": 1.08,
+          "ms": 152.0,
+          "errors": 37,
+          "characters": 3432,
+          "samples": 24
+        }
+      },
+      "samples": {
+        "SegoeUI-11-light": "I will install 11 little files in folder II, not 111.\nInvoice IL-101: total 101.11 USD. Call Lily at 0118 123 4567.\nif (limit == 1) { fileld = \"Il1Il\"; } // line 101",
+        "Consolas-11-dark": "I will install 11 little files in folder I1l, not 111.\nInvoice IL-101: total 101.11 USD. Call Lily at 0118 123 4567.\nif (limit == 1) { fileId = \"Il1lI\"; } // line 101",
+        "Arial-9-light-prose": "Small print should remain readable in a dark browser window.\nPlease bring 12 copies of the report to the library at 11:30.\nThe old building has bright windows and a quiet little garden."
+      }
+    }
+  ],
+  "tiny_rss_mib": 106.74,
+  "tiny_peak_mib": 157.87,
+  "small_rss_mib": 134.24,
+  "small_peak_mib": 344.94,
+  "tesseract_rss_mib": 58.65,
+  "tesseract_peak_mib": 63.48,
+  "tiny_first_cached_ms": 172.4,
+  "small_first_cached_ms": 343.6
+}
