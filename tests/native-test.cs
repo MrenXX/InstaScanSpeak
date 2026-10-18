@@ -32,6 +32,8 @@ public static class TestNative {
         AttachThreadInput(current,target,true);
         try { SetForegroundWindow(form); SetFocus(textBox); }
         finally { AttachThreadInput(current,target,false); AttachThreadInput(current,foreground,false); }
+        // Let the fixture set its edit focus on its own UI thread after detaching.
+        SendMessage(form,0x802A,IntPtr.Zero,IntPtr.Zero);
         if (GetForegroundWindow() != form) throw new Exception("Could not focus the test fixture");
     }
 }

@@ -28,12 +28,15 @@ Right-click the tray icon and use `OCR engine` to switch between `PP-OCRv6 Tiny`
 - Press `Ctrl+Alt+A`, drag around screen text, and release to read it.
 - Press `Ctrl+Alt+D`, drag around screen text, and release to copy it without starting speech.
 - Press `Ctrl+Alt+Q` to stop. This also cancels pending reading requests.
+- Press `Ctrl+Alt+P` to pause or resume speech from the saved position.
 - Press `Ctrl+Alt+W` to cycle the OCR language.
 - Right-click the tray icon for the inline speed slider, capture actions, voice and OCR-language selectors, startup, and Exit.
 
 The slider is immediately visible in the right-click tray panel. It covers all 21 speech-rate steps, from -10 to +10, with 0 as normal. Arrow keys move one step; Home and End jump to the limits. Changes save automatically. Windows voices update immediately. The neural voice applies speed changes at the next short section of text, preserving its pitch. Escape or clicking outside dismisses the panel.
 
 Escape or right-click cancels a screen selection. A new reading request replaces the current speech.
+
+Pause/resume works with Windows voices and Northern English Male. Windows voices finish the current word before pausing. Stop clears the paused reading, and a new reading starts unpaused. Pressing pause while nothing is queued has no effect. Paused speech keeps its audio buffers and selected voice available for resume; use Stop to discard it. Run `Configure Hotkeys.cmd` to change the default `pause_hotkey=Ctrl+Alt+P`.
 
 The copy and language shortcuts are the original InstOCR defaults. Exit the standalone InstOCR app before using them here. Run `Configure Hotkeys.cmd` to change shortcuts, then restart. `instaspeak-cli.exe --restore-ocr-hotkeys` imports the original InstOCR shortcut preferences when available. Settings are stored in `%APPDATA%\InstaSpeak\rust-settings.txt`. The saved OCR engine is `ocr_engine=windows` or `ocr_engine=tiny`.
 
@@ -83,6 +86,7 @@ Requires Windows 10 or 11 x64, Rust 1.95 or newer, and a C compiler for the opti
 powershell -NoProfile -STA -ExecutionPolicy Bypass -File .\tests\integration.ps1
 powershell -NoProfile -STA -ExecutionPolicy Bypass -File .\tests\neural.ps1
 powershell -NoProfile -STA -ExecutionPolicy Bypass -File .\tests\tiny.ps1
+powershell -NoProfile -STA -ExecutionPolicy Bypass -File .\tests\pause.ps1
 ```
 
 The integration test opens temporary Windows forms and starts a diagnostic tray instance with isolated settings. Exit any running InstaSpeak instance first. It tests selected text, registered hotkeys, the inline tray slider and saved rate, live changes, popup dismissal, both capture actions, OCR, speech, cancellation, clipboard behavior, and memory after idle. It restores the original clipboard after testing copy-only capture. It requires an unlocked desktop with an audio output device. Avoid interacting with the desktop while it runs.
@@ -93,7 +97,7 @@ The Tiny test requires both optional downloads. It checks actual capture hotkeys
 
 `instaspeak-cli.exe --check-tiny` verifies the installed OCR helper and models. `--set-ocr-engine windows|tiny` changes the saved engine for the next app restart.
 
-Other diagnostics include `--version`, `--speak TEXT`, `--read-selection`, `--capture-rect X Y W H`, `--validate-hotkey HOTKEY`, `--set-voice ID`, `--restore-ocr-hotkeys`, and `--trigger selected|capture|copy|stop|exit`. Rectangle coordinates use physical pixels. `--resident` runs the tray app with console diagnostics. Diagnostics print recognized or selected text when explicitly requested. The neural helper writes temporary audio files and the app deletes them before playback.
+Other diagnostics include `--version`, `--speak TEXT`, `--read-selection`, `--capture-rect X Y W H`, `--validate-hotkey HOTKEY`, `--set-voice ID`, `--restore-ocr-hotkeys`, and `--trigger selected|capture|copy|pause|stop|exit`. Rectangle coordinates use physical pixels. `--resident` runs the tray app with console diagnostics. Diagnostics print recognized or selected text when explicitly requested. The neural helper writes temporary audio files and the app deletes them before playback.
 
 To uninstall, run `uninstall.ps1`. Settings remain in your AppData folder.
 

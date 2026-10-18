@@ -11,8 +11,9 @@ use std::time::{Duration, Instant};
 use windows::core::{Error, Result, HRESULT, PCWSTR, PSTR};
 use windows::Win32::Foundation::{CloseHandle, HANDLE};
 use windows::Win32::Media::Audio::{
-    waveOutClose, waveOutOpen, waveOutPrepareHeader, waveOutReset, waveOutUnprepareHeader,
-    waveOutWrite, CALLBACK_EVENT, HWAVEOUT, WAVEFORMATEX, WAVEHDR, WAVE_MAPPER, WHDR_DONE,
+    waveOutClose, waveOutOpen, waveOutPause, waveOutPrepareHeader, waveOutReset, waveOutRestart,
+    waveOutUnprepareHeader, waveOutWrite, CALLBACK_EVENT, HWAVEOUT, WAVEFORMATEX, WAVEHDR,
+    WAVE_MAPPER, WHDR_DONE,
 };
 use windows::Win32::System::JobObjects::*;
 use windows::Win32::System::Threading::{CreateEventW, WaitForSingleObject, INFINITE};
@@ -50,6 +51,7 @@ struct Shared {
     generation: AtomicU64,
     rate: AtomicI32,
     busy: AtomicBool,
+    paused: AtomicBool,
     error: Mutex<Option<String>>,
     playback: Mutex<Option<usize>>,
 }
@@ -65,6 +67,7 @@ impl Shared {
     fn cancel(&self) {
         let playback = self.playback.lock().unwrap();
         self.generation.fetch_add(1, Ordering::SeqCst);
+        self.paused.store(false, Ordering::SeqCst);
         if let Some(device) = *playback {
             unsafe {
                 waveOutReset(HWAVEOUT(device as _));
@@ -73,6 +76,25 @@ impl Shared {
         if self.busy.swap(false, Ordering::SeqCst) {
             self.kill();
         }
+    }
+
+    fn toggle_pause(&self) -> Result<Option<bool>> {
+        let playback = self.playback.lock().unwrap();
+        if !self.busy.load(Ordering::SeqCst) {
+            return Ok(None);
+        }
+        let paused = !self.paused.load(Ordering::SeqCst);
+        if let Some(device) = *playback {
+            audio_result(unsafe {
+                if paused {
+                    waveOutPause(HWAVEOUT(device as _))
+                } else {
+                    waveOutRestart(HWAVEOUT(device as _))
+                }
+            })?;
+        }
+        self.paused.store(paused, Ordering::SeqCst);
+        Ok(Some(paused))
     }
 }
 
@@ -97,6 +119,7 @@ impl Speaker {
             generation: AtomicU64::new(0),
             rate: AtomicI32::new(0),
             busy: AtomicBool::new(false),
+            paused: AtomicBool::new(false),
             error: Mutex::new(None),
             playback: Mutex::new(None),
         });
@@ -123,6 +146,9 @@ impl Speaker {
 
     pub fn stop(&self) {
         self.shared.cancel();
+    }
+    pub fn toggle_pause(&self) -> Result<Option<bool>> {
+        self.shared.toggle_pause()
     }
     pub fn set_rate(&self, rate: i32) {
         self.shared.rate.store(rate, Ordering::SeqCst);
@@ -226,6 +252,7 @@ fn worker(rx: mpsc::Receiver<Request>, shared: Arc<Shared>) {
                 println!("neural_finished=true");
             }
             shared.busy.store(false, Ordering::SeqCst);
+            shared.paused.store(false, Ordering::SeqCst);
         }
     }
     shared.kill();
@@ -400,6 +427,9 @@ fn play_audio(audio: &[u8], generation: u64, shared: &Shared) -> Result<()> {
             *slot = Some(device.0 as usize);
             audio_result(waveOutPrepareHeader(device, &mut *header, size))?;
             prepared = true;
+            if shared.paused.load(Ordering::SeqCst) {
+                audio_result(waveOutPause(device))?;
+            }
             audio_result(waveOutWrite(device, &mut *header, size))?;
             drop(slot);
             println!("neural_audio_started={generation}");
@@ -472,6 +502,7 @@ mod tests {
             generation: AtomicU64::new(0),
             rate: AtomicI32::new(0),
             busy: AtomicBool::new(true),
+            paused: AtomicBool::new(false),
             error: Mutex::new(None),
             playback: Mutex::new(None),
         });
@@ -502,6 +533,36 @@ mod tests {
             thread::sleep(Duration::from_millis(1));
         }
         thread::sleep(Duration::from_millis(100));
+        fn position(shared: &Shared) -> u32 {
+            use windows::Win32::Media::{MMTIME, TIME_SAMPLES};
+            let playback = shared.playback.lock().unwrap();
+            let mut time = MMTIME {
+                wType: TIME_SAMPLES,
+                ..Default::default()
+            };
+            audio_result(unsafe {
+                windows::Win32::Media::Audio::waveOutGetPosition(
+                    HWAVEOUT(playback.unwrap() as _),
+                    &mut time,
+                    std::mem::size_of::<MMTIME>() as u32,
+                )
+            })
+            .unwrap();
+            unsafe { time.u.sample }
+        }
+        assert_eq!(shared.toggle_pause().unwrap(), Some(true));
+        thread::sleep(Duration::from_millis(100));
+        let paused_position = position(&shared);
+        thread::sleep(Duration::from_millis(250));
+        assert_eq!(position(&shared), paused_position, "paused audio advanced");
+        assert!(rx.try_recv().is_err(), "paused buffer finished");
+        assert_eq!(shared.toggle_pause().unwrap(), Some(false));
+        thread::sleep(Duration::from_millis(200));
+        assert!(
+            position(&shared) > paused_position,
+            "resume did not continue from the paused position"
+        );
+        assert_eq!(shared.toggle_pause().unwrap(), Some(true));
         let start = Instant::now();
         shared.cancel();
         let stopped = rx.recv_timeout(Duration::from_millis(250));
@@ -514,6 +575,7 @@ mod tests {
         // Stop must also suppress a section which has not submitted its audio yet.
         play_audio(&cancelled_wav, 0, &shared).unwrap();
         assert!(shared.playback.lock().unwrap().is_none());
+        assert!(!shared.paused.load(Ordering::SeqCst));
     }
 
     #[test]

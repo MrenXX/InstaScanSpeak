@@ -69,8 +69,10 @@ type AnyResult<T> = std::result::Result<T, Box<dyn Error>>;
 
 const HOTKEY_SELECTED: i32 = 3;
 const HOTKEY_STOP: i32 = 4;
+const HOTKEY_PAUSE: i32 = 6;
 const IDM_SELECTED: usize = 104;
 const IDM_STOP: usize = 105;
+const IDM_PAUSE: usize = 107;
 const IDM_VOICE_BASE: usize = 500;
 const IDM_COPY: usize = 106;
 const HOTKEY_COPY: i32 = 5;
@@ -80,6 +82,7 @@ const WM_OVERLAY_CLOSED: u32 = WM_APP + 7;
 const TIMER_RELEASE_SPEECH: usize = 3;
 const DEFAULT_SELECTED_HOTKEY: &str = "Ctrl+Alt+S";
 const DEFAULT_STOP_HOTKEY: &str = "Ctrl+Alt+Q";
+const DEFAULT_PAUSE_HOTKEY: &str = "Ctrl+Alt+P";
 const HOTKEY_CAPTURE: i32 = 1;
 const HOTKEY_CYCLE_LANGUAGE: i32 = 2;
 const TRAY_ID: u32 = 1;
@@ -236,8 +239,9 @@ fn diagnostics(args: &[String]) -> AnyResult<()> {
                 "capture" => IDM_CAPTURE,
                 "copy" => IDM_COPY,
                 "stop" => IDM_STOP,
+                "pause" => IDM_PAUSE,
                 "exit" => IDM_EXIT,
-                _ => return Err("Expected selected, capture, copy, stop, or exit".into()),
+                _ => return Err("Expected selected, capture, copy, pause, stop, or exit".into()),
             };
             unsafe {
                 let class = wide_null("InstaSpeakRustHiddenWindow");
@@ -249,7 +253,7 @@ fn diagnostics(args: &[String]) -> AnyResult<()> {
                 }
             }
         }
-        _ => return Err("Use --list-voices, --list-languages, --benchmark, --speak TEXT, --read-selection, --capture-rect X Y W H, --validate-hotkey HOTKEY, --trigger selected|capture|copy|stop|exit, or --resident.".into()),
+        _ => return Err("Use --list-voices, --list-languages, --benchmark, --speak TEXT, --read-selection, --capture-rect X Y W H, --validate-hotkey HOTKEY, --trigger selected|capture|copy|pause|stop|exit, or --resident.".into()),
     }
     Ok(())
 }
@@ -422,6 +426,7 @@ struct RustSettings {
     cycle_hotkey: String,
     selected_hotkey: String,
     stop_hotkey: String,
+    pause_hotkey: String,
     copy_hotkey: String,
     voice_id: String,
     rate: i32,
@@ -436,6 +441,7 @@ impl Default for RustSettings {
             cycle_hotkey: DEFAULT_CYCLE_HOTKEY.to_string(),
             selected_hotkey: DEFAULT_SELECTED_HOTKEY.to_string(),
             stop_hotkey: DEFAULT_STOP_HOTKEY.to_string(),
+            pause_hotkey: DEFAULT_PAUSE_HOTKEY.to_string(),
             copy_hotkey: DEFAULT_COPY_HOTKEY.to_string(),
             voice_id: String::new(),
             rate: 0,
@@ -464,6 +470,8 @@ impl RustSettings {
                 settings.copy_hotkey = value.trim().to_string();
             } else if let Some(value) = line.strip_prefix("stop_hotkey=") {
                 settings.stop_hotkey = value.trim().to_string();
+            } else if let Some(value) = line.strip_prefix("pause_hotkey=") {
+                settings.pause_hotkey = value.trim().to_string();
             } else if let Some(value) = line.strip_prefix("voice_id=") {
                 settings.voice_id = value.trim().to_string();
             } else if let Some(value) = line.strip_prefix("rate=") {
@@ -524,6 +532,22 @@ impl RustSettings {
                 .find(|value| available(value))
                 .unwrap();
         }
+        let pause_available = |value: &str| {
+            available(value)
+                && Hotkey::parse(value)
+                    .map(|key| {
+                        let copy = Hotkey::parse(&settings.copy_hotkey).unwrap();
+                        key.modifiers != copy.modifiers || key.virtual_key != copy.virtual_key
+                    })
+                    .unwrap_or(false)
+        };
+        if !pause_available(&settings.pause_hotkey) {
+            settings.pause_hotkey = ('P'..='Z')
+                .chain('B'..='O')
+                .map(|key| format!("Ctrl+Alt+{key}"))
+                .find(|value| pause_available(value))
+                .unwrap();
+        }
 
         settings
     }
@@ -536,8 +560,8 @@ impl RustSettings {
 
         let value = self.language_tag.as_deref().unwrap_or("");
         let text = format!(
-            "language_tag={value}\ncapture_hotkey={}\ncycle_hotkey={}\nselected_hotkey={}\nstop_hotkey={}\ncopy_hotkey={}\nvoice_id={}\nrate={}\nocr_engine={}\n",
-            self.capture_hotkey, self.cycle_hotkey, self.selected_hotkey, self.stop_hotkey, self.copy_hotkey, self.voice_id, self.rate, if self.tiny_ocr {"tiny"} else {"windows"}
+            "language_tag={value}\ncapture_hotkey={}\ncycle_hotkey={}\nselected_hotkey={}\nstop_hotkey={}\ncopy_hotkey={}\nvoice_id={}\nrate={}\nocr_engine={}\npause_hotkey={}\n",
+            self.capture_hotkey, self.cycle_hotkey, self.selected_hotkey, self.stop_hotkey, self.copy_hotkey, self.voice_id, self.rate, if self.tiny_ocr {"tiny"} else {"windows"}, self.pause_hotkey
         );
         let _ = fs::write(path, text);
     }
@@ -721,6 +745,16 @@ impl AppState {
             DEFAULT_CYCLE_HOTKEY,
             "language cycle",
         );
+        // Never fall back onto a shortcut already used by another action.
+        let pause_default = self.settings.pause_hotkey.clone();
+        self.settings.pause_hotkey = self
+            .register_hotkey_or_default(
+                HOTKEY_PAUSE,
+                Hotkey::parse(&self.settings.pause_hotkey).unwrap(),
+                &pause_default,
+                "pause/resume speech",
+            )
+            .display;
     }
 
     fn register_hotkey_or_default(
@@ -950,7 +984,10 @@ impl AppState {
             .speak(text, &self.settings.voice_id, self.settings.rate)
         {
             Ok(ms) => {
-                self.update_status("InstaSpeak: reading. Ctrl+Alt+Q stops speech.");
+                self.update_status(&format!(
+                    "InstaSpeak: reading. {} pauses; {} stops.",
+                    self.settings.pause_hotkey, self.settings.stop_hotkey
+                ));
                 println!("speech_queued_ms={ms:.2}");
                 unsafe {
                     SetTimer(self.hwnd, TIMER_RELEASE_SPEECH, 30_000, None);
@@ -970,6 +1007,23 @@ impl AppState {
             }
         }
         self.update_status("InstaSpeak: ready");
+    }
+
+    fn toggle_pause(&mut self) {
+        match self.speech.toggle_pause() {
+            Ok(Some(paused)) => {
+                println!("speech_paused={paused}");
+                self.update_status(&format!(
+                    "InstaSpeak: {}. {} {}; {} stops.",
+                    if paused { "paused" } else { "reading" },
+                    self.settings.pause_hotkey,
+                    if paused { "resumes" } else { "pauses" },
+                    self.settings.stop_hotkey
+                ));
+            }
+            Ok(None) => println!("speech_pause_ignored=true"),
+            Err(error) => self.show_status_popup(&format!("Pause/resume failed: {error}")),
+        }
     }
 
     fn read_selection(&mut self) {
@@ -1088,6 +1142,7 @@ impl AppState {
             UnregisterHotKey(self.hwnd, HOTKEY_COPY).ok();
             UnregisterHotKey(self.hwnd, HOTKEY_SELECTED).ok();
             UnregisterHotKey(self.hwnd, HOTKEY_STOP).ok();
+            UnregisterHotKey(self.hwnd, HOTKEY_PAUSE).ok();
             if let Some(hwnd) = self.status_popup.take() {
                 DestroyWindow(hwnd).ok();
             }
@@ -1496,6 +1551,7 @@ unsafe extern "system" fn hidden_wnd_proc(
                 match wparam.0 as i32 {
                     HOTKEY_SELECTED => app.read_selection(),
                     HOTKEY_STOP => app.stop_reading(),
+                    HOTKEY_PAUSE => app.toggle_pause(),
                     HOTKEY_CAPTURE => app.start_capture(CaptureAction::Read),
                     HOTKEY_COPY => app.start_capture(CaptureAction::Copy),
                     HOTKEY_CYCLE_LANGUAGE => app.cycle_language(),
@@ -1518,6 +1574,7 @@ unsafe extern "system" fn hidden_wnd_proc(
                 match loword(wparam.0) as usize {
                     IDM_SELECTED => app.read_selection(),
                     IDM_STOP => app.stop_reading(),
+                    IDM_PAUSE => app.toggle_pause(),
                     IDM_CAPTURE => app.start_capture(CaptureAction::Read),
                     IDM_COPY => app.start_capture(CaptureAction::Copy),
                     IDM_CYCLE_LANGUAGE => app.cycle_language(),

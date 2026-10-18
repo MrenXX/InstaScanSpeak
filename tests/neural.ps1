@@ -23,7 +23,7 @@ function Wait-For($condition,$description,$seconds=15) {
 function Read-Selected {
     [TestNative]::FocusFixture([IntPtr]$state.form,[IntPtr]$state.input)
     [TestNative]::SendMessage([IntPtr]$state.input,0xB1,[IntPtr]0,[IntPtr](-1)) | Out-Null
-    & $cli --trigger selected
+    [TestNative]::PostMessage([TestNative]::FindWindow('InstaSpeakRustHiddenWindow',$null),0x111,[IntPtr]104,[IntPtr]0) | Out-Null
 }
 function Last-Helper {
     $matches = [regex]::Matches((Get-Content -LiteralPath $logPath -Raw),'neural_helper_pid=(\d+)')

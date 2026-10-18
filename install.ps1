@@ -43,5 +43,6 @@ if ($LASTEXITCODE -ne 0) { throw 'Installed app verification failed.' }
 if (!$NoStart) { Start-Process -FilePath $app -WindowStyle Hidden }
 Write-Host "Installed to $installDir. Starts at login."
 Write-Host 'Read selection: Ctrl+Alt+S. Read screen region: Ctrl+Alt+A. Stop: Ctrl+Alt+Q.'
+Write-Host 'Pause/resume speech: Ctrl+Alt+P. Configure Hotkeys can change shortcuts.'
 Write-Host 'Copy screen text: Ctrl+Alt+D. Cycle OCR language: Ctrl+Alt+W.'
 Write-Host 'Right-click the tray icon for the speed slider and controls.'

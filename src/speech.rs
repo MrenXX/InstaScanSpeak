@@ -8,6 +8,7 @@ pub struct Speech {
     neural: Option<super::neural::Speaker>,
     using_neural: bool,
     notify: isize,
+    paused: bool,
 }
 
 impl Speech {
@@ -17,6 +18,7 @@ impl Speech {
             neural: None,
             using_neural: false,
             notify: 0,
+            paused: false,
         }
     }
 
@@ -66,7 +68,7 @@ impl Speech {
         Ok(start.elapsed().as_secs_f64() * 1000.0)
     }
 
-    pub fn stop(&self) {
+    pub fn stop(&mut self) {
         if let Some(neural) = &self.neural {
             neural.stop();
         }
@@ -77,8 +79,38 @@ impl Speech {
                     (SPF_ASYNC.0 | SPF_PURGEBEFORESPEAK.0) as u32,
                     None,
                 );
+                if self.paused {
+                    let _ = voice.Resume();
+                }
             }
         }
+        self.paused = false;
+    }
+
+    pub fn toggle_pause(&mut self) -> Result<Option<bool>> {
+        if self.using_neural {
+            return match &self.neural {
+                Some(neural) => neural.toggle_pause(),
+                None => Ok(None),
+            };
+        }
+        let Some(voice) = &self.voice else {
+            return Ok(None);
+        };
+        unsafe {
+            let mut status = SPVOICESTATUS::default();
+            voice.GetStatus(&mut status, std::ptr::null_mut())?;
+            if !self.paused && status.dwRunningState == SPRS_DONE.0 as u32 {
+                return Ok(None);
+            }
+            if self.paused {
+                voice.Resume()?;
+            } else {
+                voice.Pause()?;
+            }
+        }
+        self.paused = !self.paused;
+        Ok(Some(self.paused))
     }
 
     pub fn set_rate(&self, rate: i32) -> Result<()> {
@@ -94,6 +126,9 @@ impl Speech {
     }
 
     pub fn release_if_finished(&mut self) {
+        if self.paused {
+            return;
+        }
         if let Some(voice) = &self.voice {
             let mut status = SPVOICESTATUS::default();
             if unsafe { voice.GetStatus(&mut status, std::ptr::null_mut()) }.is_ok()
@@ -139,6 +174,85 @@ pub fn default_voice_id() -> Result<String> {
         let result = id.to_string();
         CoTaskMemFree(Some(id.0 as _));
         Ok(result?)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::{thread, time::Duration};
+
+    #[test]
+    #[ignore = "requires a Windows audio output device"]
+    fn sapi_pause_resume_keeps_position_and_stop_resets_pause() -> Result<()> {
+        unsafe {
+            windows::Win32::System::Com::CoInitializeEx(
+                None,
+                windows::Win32::System::Com::COINIT_MULTITHREADED,
+            )
+            .ok()?;
+        }
+        let mut speech = Speech::new();
+        assert_eq!(speech.toggle_pause()?, None);
+        speech.speak(
+            &"This passage verifies pausing without losing the current reading position. "
+                .repeat(20),
+            "",
+            0,
+        )?;
+        let audio_status = |speech: &Speech| -> Result<SPAUDIOSTATUS> {
+            use windows::core::Interface;
+            let mut status = SPAUDIOSTATUS::default();
+            unsafe {
+                let audio: ISpAudio = speech.voice.as_ref().unwrap().GetOutputStream()?.cast()?;
+                audio.GetStatus(&mut status)?;
+            }
+            Ok(status)
+        };
+        let deadline = Instant::now() + Duration::from_secs(3);
+        while audio_status(&speech)?.CurDevicePos == 0 {
+            assert!(Instant::now() < deadline, "SAPI audio did not start");
+            thread::sleep(Duration::from_millis(20));
+        }
+        assert_eq!(speech.toggle_pause()?, Some(true));
+        // Pause completes at a word boundary; wait for the output device to close.
+        let deadline = Instant::now() + Duration::from_secs(3);
+        while audio_status(&speech)?.State == SPAS_RUN {
+            assert!(Instant::now() < deadline, "SAPI output did not pause");
+            thread::sleep(Duration::from_millis(20));
+        }
+        let paused_position = audio_status(&speech)?.CurDevicePos;
+        thread::sleep(Duration::from_millis(300));
+        assert_eq!(
+            audio_status(&speech)?.CurDevicePos,
+            paused_position,
+            "paused SAPI audio advanced"
+        );
+        speech.release_if_finished();
+        assert!(
+            speech.voice.is_some(),
+            "paused voice was discarded by idle cleanup"
+        );
+        assert_eq!(speech.toggle_pause()?, Some(false));
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while audio_status(&speech)?.CurDevicePos <= paused_position {
+            assert!(
+                Instant::now() < deadline,
+                "SAPI did not resume at its saved position"
+            );
+            thread::sleep(Duration::from_millis(20));
+        }
+        assert_eq!(speech.toggle_pause()?, Some(true));
+        speech.stop();
+        speech.wait(2000)?;
+        assert_eq!(speech.toggle_pause()?, None);
+        speech.speak("InstaSpeak is ready.", "", 0)?;
+        speech.wait(10_000)?;
+        drop(speech);
+        unsafe {
+            windows::Win32::System::Com::CoUninitialize();
+        }
+        Ok(())
     }
 }
 

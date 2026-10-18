@@ -3,11 +3,22 @@ Add-Type -AssemblyName System.Windows.Forms,System.Drawing
 Add-Type @'
 using System;
 using System.Runtime.InteropServices;
+using System.Windows.Forms;
 public static class FixtureDpi {
     [DllImport("user32.dll")] public static extern bool SetProcessDpiAwarenessContext(IntPtr value);
     [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hwnd, int cmd);
 }
-'@
+public sealed class FixtureFocus : NativeWindow {
+    static FixtureFocus instance;
+    readonly TextBox input;
+    FixtureFocus(Form form,TextBox input) { this.input=input; AssignHandle(form.Handle); }
+    public static void Install(Form form,TextBox input) { instance=new FixtureFocus(form,input); }
+    protected override void WndProc(ref Message message) {
+        if(message.Msg==0x802A) { input.Focus(); input.SelectAll(); message.Result=new IntPtr(1); return; }
+        base.WndProc(ref message);
+    }
+}
+'@ -ReferencedAssemblies System.Windows.Forms
 [FixtureDpi]::SetProcessDpiAwarenessContext([IntPtr](-4)) | Out-Null
 if ($UseWpf) {
     Add-Type -AssemblyName PresentationFramework
@@ -45,6 +56,7 @@ $label.Font = [Drawing.Font]::new('Segoe UI',26)
 $label.Text = 'InstaSpeak reads this screen text aloud.'
 $form.Controls.Add($label)
 $form.Add_Shown({
+    [FixtureFocus]::Install($form,$textBox)
     [FixtureDpi]::ShowWindow($form.Handle, 5) | Out-Null
     $form.Activate()
     $textBox.Focus() | Out-Null
