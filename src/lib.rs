@@ -14,6 +14,7 @@ use std::mem::size_of;
 use std::path::PathBuf;
 use std::ptr::{null, null_mut};
 use std::sync::mpsc::{self, Sender};
+use std::sync::OnceLock;
 use std::thread;
 use std::time::Instant;
 
@@ -54,10 +55,11 @@ use windows::Win32::UI::Shell::{
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetForegroundWindow,
-    GetMessageW, GetSystemMetrics, GetWindowLongPtrW, KillTimer, LoadCursorW, LoadIconW,
+    GetMessageW, GetSystemMetrics, GetWindowLongPtrW, KillTimer, LoadCursorW, LoadIconW, LoadImageW,
     MessageBoxW, PostMessageW, PostQuitMessage, RegisterClassW, SetForegroundWindow, SetTimer,
-    SetWindowLongPtrW, ShowWindow, TranslateMessage, CREATESTRUCTW, GWLP_USERDATA, HMENU,
-    IDC_ARROW, IDC_CROSS, IDI_APPLICATION, MB_ICONERROR, MB_OK, MSG, SM_CXVIRTUALSCREEN,
+    SetWindowLongPtrW, ShowWindow, TranslateMessage, CREATESTRUCTW, GWLP_USERDATA, HICON, HMENU,
+    IDC_ARROW, IDC_CROSS, IDI_APPLICATION, IMAGE_ICON, LR_DEFAULTSIZE, LR_LOADFROMFILE,
+    MB_ICONERROR, MB_OK, MSG, SM_CXVIRTUALSCREEN,
     SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SW_SHOW, SW_SHOWNOACTIVATE,
     WINDOW_EX_STYLE, WINDOW_STYLE, WM_APP, WM_COMMAND, WM_DESTROY, WM_HOTKEY, WM_KEYDOWN,
     WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MOUSEMOVE, WM_NCCREATE, WM_NCDESTROY, WM_PAINT,
@@ -804,7 +806,7 @@ impl AppState {
             let mut data = notify_icon_data(self.hwnd, "InstaSpeak Rust: ready");
             data.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP;
             data.uCallbackMessage = WM_TRAY;
-            data.hIcon = LoadIconW(null_hinstance(), IDI_APPLICATION).unwrap_or_default();
+            data.hIcon = app_icon();
             if Shell_NotifyIconW(NIM_ADD, &data).as_bool() {
                 self.tray_added = true;
                 println!("tray icon installed");
@@ -1815,6 +1817,7 @@ unsafe fn register_window_class(
     let wnd_class = WNDCLASSW {
         lpfnWndProc: wnd_proc,
         hCursor: LoadCursorW(null_hinstance(), cursor).unwrap_or_default(),
+        hIcon: app_icon(),
         hbrBackground: null_hbrush(),
         lpszClassName: PCWSTR(class_name.as_ptr()),
         ..Default::default()
@@ -1946,6 +1949,35 @@ unsafe fn paint_status_popup(hwnd: HWND, state: &StatusState) {
     let wide = state.text.encode_utf16().collect::<Vec<u16>>();
     let _ = TextOutW(hdc, 14, 17, &wide);
     let _ = EndPaint(hwnd, &paint);
+}
+
+fn app_icon() -> HICON {
+    struct Cache(OnceLock<HICON>);
+    unsafe impl Sync for Cache {}
+    static ICON: Cache = Cache(OnceLock::new());
+    *ICON.0.get_or_init(|| unsafe {
+        let path = std::env::current_exe()
+            .ok()
+            .and_then(|exe| exe.parent().map(|dir| dir.join("instaspeak.ico")));
+        if let Some(path) = path {
+            if path.is_file() {
+                let wide = wide_null(&path.to_string_lossy());
+                if let Ok(raw) = LoadImageW(
+                    null_hinstance(),
+                    PCWSTR(wide.as_ptr()),
+                    IMAGE_ICON,
+                    0,
+                    0,
+                    LR_DEFAULTSIZE | LR_LOADFROMFILE,
+                ) {
+                    println!("tray icon: loaded instaspeak.ico");
+                    return HICON(raw.0);
+                }
+            }
+        }
+        println!("tray icon: instaspeak.ico not found, using default");
+        LoadIconW(null_hinstance(), IDI_APPLICATION).unwrap_or_default()
+    })
 }
 
 fn notify_icon_data(hwnd: HWND, tip: &str) -> NOTIFYICONDATAW {

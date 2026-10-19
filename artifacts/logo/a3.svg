@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="a3-laser" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ff5a2e"/>
+      <stop offset="1" stop-color="#ff8d54"/>
+    </linearGradient>
+    <filter id="a3-glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="9"/>
+    </filter>
+  </defs>
+  <rect x="138" y="40" width="236" height="432" rx="46" fill="#f6f9fd" stroke="#0b1526" stroke-width="16"/>
+  <g fill="#0b1526">
+    <rect x="182" y="118" width="148" height="34" rx="17"/>
+    <rect x="182" y="184" width="98" height="34" rx="17"/>
+    <rect x="182" y="250" width="134" height="34" rx="17"/>
+    <rect x="182" y="384" width="60" height="34" rx="17"/>
+  </g>
+  <rect x="162" y="264" width="188" height="38" fill="url(#a3-laser)" opacity="0.55" filter="url(#a3-glow)"/>
+  <rect x="162" y="264" width="188" height="38" fill="url(#a3-laser)"/>
+</svg>

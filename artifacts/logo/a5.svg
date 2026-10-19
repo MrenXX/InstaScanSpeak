@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <pattern id="a5-scan" width="8" height="18" patternUnits="userSpaceOnUse">
+      <rect width="8" height="18" fill="#052116"/>
+      <rect y="5" width="8" height="6" fill="#0d3d29"/>
+    </pattern>
+    <filter id="a5-glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="7"/>
+    </filter>
+  </defs>
+  <rect x="16" y="16" width="480" height="480" rx="112" fill="#04120a"/>
+  <rect x="60" y="84" width="392" height="320" rx="40" fill="#052116" stroke="#17694a" stroke-width="12"/>
+  <rect x="72" y="96" width="368" height="296" rx="30" fill="url(#a5-scan)"/>
+  <g fill="none" stroke="#34d399" stroke-width="30" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 100 252 L 148 152 L 196 292 L 244 130 L 292 280 L 340 182 L 388 234" opacity="0.4" filter="url(#a5-glow)"/>
+    <path d="M 100 252 L 148 152 L 196 292 L 244 130 L 292 280 L 340 182 L 388 234"/>
+  </g>
+  <rect x="352" y="330" width="46" height="38" fill="#34d399"/>
+</svg>

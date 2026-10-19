@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Bites iteration B: squircle split into a bright OCR page and a dark sound side">
+  <defs>
+    <clipPath id="bib-clip">
+      <rect x="24" y="24" width="464" height="464" rx="96"/>
+    </clipPath>
+  </defs>
+  <rect id="bib-tile" x="24" y="24" width="464" height="464" rx="96" fill="#10141c"/>
+  <g id="bib-page" clip-path="url(#bib-clip)">
+    <polygon points="24,24 288,24 240,488 24,488" fill="#f6f9fd"/>
+  </g>
+  <g id="bib-text" fill="#10141c">
+    <rect x="66" y="150" width="120" height="26" rx="13"/>
+    <rect x="66" y="206" width="86" height="26" rx="13"/>
+    <rect x="66" y="262" width="110" height="26" rx="13"/>
+  </g>
+  <g id="bib-bars" fill="#35d0ba">
+    <rect x="318" y="194" width="22" height="84" rx="11"/>
+    <rect x="358" y="166" width="22" height="140" rx="11"/>
+    <rect x="398" y="204" width="22" height="64" rx="11"/>
+  </g>
+</svg>

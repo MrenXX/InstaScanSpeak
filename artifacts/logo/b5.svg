@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <clipPath id="b5-clip">
+      <path d="M176 104 H336 A96 96 0 0 1 432 200 V308 A96 96 0 0 1 336 404 H240 L150 444 L162 404 H176 A96 96 0 0 1 80 308 V200 A96 96 0 0 1 176 104 Z"/>
+    </clipPath>
+  </defs>
+  <path d="M176 104 H336 A96 96 0 0 1 432 200 V308 A96 96 0 0 1 336 404 H240 L150 444 L162 404 H176 A96 96 0 0 1 80 308 V200 A96 96 0 0 1 176 104 Z" fill="#3B82F6"/>
+  <g clip-path="url(#b5-clip)">
+    <ellipse cx="200" cy="168" rx="160" ry="70" fill="#FFFFFF" opacity="0.16"/>
+  </g>
+  <circle cx="186" cy="214" r="38" fill="#FFFFFF"/>
+  <circle cx="326" cy="214" r="38" fill="#FFFFFF"/>
+  <circle cx="192" cy="222" r="17" fill="#0B1B33"/>
+  <circle cx="332" cy="222" r="17" fill="#0B1B33"/>
+  <rect x="204" y="286" width="22" height="52" rx="11" fill="#FFFFFF"/>
+  <rect x="244" y="270" width="22" height="84" rx="11" fill="#FFFFFF"/>
+  <rect x="284" y="286" width="22" height="52" rx="11" fill="#FFFFFF"/>
+  <circle cx="140" cy="270" r="24" fill="#F472B6" opacity="0.5"/>
+  <circle cx="372" cy="270" r="24" fill="#F472B6" opacity="0.5"/>
+</svg>

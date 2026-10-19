@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Whisper iteration C: paper bubble under an OCR laser with voice bars">
+  <defs>
+    <linearGradient id="whc-laser" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ff5a2e"/>
+      <stop offset="1" stop-color="#ffb143"/>
+    </linearGradient>
+    <filter id="whc-glow" x="-40%" y="-200%" width="180%" height="500%">
+      <feGaussianBlur stdDeviation="14"/>
+    </filter>
+    <clipPath id="whc-clip">
+      <path d="M128 120 H292 A48 48 0 0 1 340 168 V282 A48 48 0 0 1 292 330 H176 L104 378 L112 330 H128 A48 48 0 0 1 80 282 V168 A48 48 0 0 1 128 120 Z"/>
+    </clipPath>
+  </defs>
+  <path id="whc-body" d="M128 120 H292 A48 48 0 0 1 340 168 V282 A48 48 0 0 1 292 330 H176 L104 378 L112 330 H128 A48 48 0 0 1 80 282 V168 A48 48 0 0 1 128 120 Z" fill="#fbfdff" stroke="#22355e" stroke-width="10"/>
+  <g id="whc-text" fill="#101828">
+    <rect x="112" y="164" width="124" height="26" rx="13"/>
+    <rect x="112" y="216" width="86" height="26" rx="13"/>
+    <rect x="112" y="268" width="110" height="26" rx="13"/>
+  </g>
+  <g id="whc-bars" fill="#2f5cff">
+    <rect x="312" y="196" width="24" height="64" rx="12"/>
+    <rect x="346" y="172" width="24" height="112" rx="12"/>
+    <rect x="380" y="204" width="24" height="48" rx="12"/>
+  </g>
+  <g id="whc-scan" clip-path="url(#whc-clip)">
+    <g transform="rotate(-12 256 240)">
+      <rect x="30" y="254" width="452" height="40" rx="20" fill="url(#whc-laser)" filter="url(#whc-glow)" opacity="0.55"/>
+      <rect x="30" y="254" width="452" height="40" rx="20" fill="url(#whc-laser)" opacity="0.85"/>
+    </g>
+  </g>
+</svg>

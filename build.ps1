@@ -22,6 +22,7 @@ try {
     $dist = Join-Path $PSScriptRoot 'dist\windows-x64'
     New-Item -ItemType Directory -Force -Path $dist | Out-Null
     Copy-Item -LiteralPath 'target\release\instaspeak.exe', 'target\release\instaspeak-cli.exe' -Destination $dist -Force
+    Copy-Item -LiteralPath 'resources\instaspeak.ico' -Destination $dist -Force
     Copy-Item -LiteralPath 'ocr-helper\target\release\instaspeak-ocr.exe' -Destination $dist -Force
 } finally {
     $env:PATH=$savedPath

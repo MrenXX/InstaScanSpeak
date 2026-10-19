@@ -4,7 +4,7 @@ $installDir = Join-Path $env:LOCALAPPDATA 'InstaSpeak'
 $sourceDir = Join-Path $PSScriptRoot 'dist\windows-x64'
 $app = Join-Path $installDir 'instaspeak.exe'
 $cli = Join-Path $installDir 'instaspeak-cli.exe'
-foreach ($file in @('instaspeak.exe', 'instaspeak-cli.exe', 'instaspeak-ocr.exe')) {
+foreach ($file in @('instaspeak.exe', 'instaspeak-cli.exe', 'instaspeak-ocr.exe', 'instaspeak.ico')) {
     if (!(Test-Path -LiteralPath (Join-Path $sourceDir $file))) { throw "Missing $file. Run build.ps1 first." }
 }
 foreach ($file in @('resources\tiny-characters.txt','resources\Tiny OCR third-party notices.txt','install-tiny-ocr.ps1','Install Tiny OCR.cmd')) {
@@ -16,7 +16,7 @@ if ($running -and (Test-Path -LiteralPath $cli)) {
     & $cli --trigger exit 2>$null
     $running | Wait-Process -Timeout 5 -ErrorAction SilentlyContinue
 }
-foreach ($file in @('instaspeak.exe', 'instaspeak-cli.exe', 'instaspeak-ocr.exe')) {
+foreach ($file in @('instaspeak.exe', 'instaspeak-cli.exe', 'instaspeak-ocr.exe', 'instaspeak.ico')) {
     Copy-Item -LiteralPath (Join-Path $sourceDir $file) -Destination $installDir -Force
     Unblock-File -LiteralPath (Join-Path $installDir $file)
 }
@@ -35,6 +35,7 @@ $shortcutPath = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\In
 $shell = New-Object -ComObject WScript.Shell
 $shortcut = $shell.CreateShortcut($shortcutPath)
 $shortcut.TargetPath = $app
+$shortcut.IconLocation = "$(Join-Path $installDir 'instaspeak.ico'),0"
 $shortcut.WorkingDirectory = $installDir
 $shortcut.Description = 'Copy screen text or read text aloud'
 $shortcut.Save()

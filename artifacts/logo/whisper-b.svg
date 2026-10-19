@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Whisper iteration B: sunset gradient bubble with a spoken waveform">
+  <defs>
+    <linearGradient id="whb-grad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1d4ed8"/>
+      <stop offset="1" stop-color="#f59e0b"/>
+    </linearGradient>
+  </defs>
+  <path id="whb-body" d="M128 120 H292 A48 48 0 0 1 340 168 V282 A48 48 0 0 1 292 330 H176 L104 378 L112 330 H128 A48 48 0 0 1 80 282 V168 A48 48 0 0 1 128 120 Z" fill="url(#whb-grad)"/>
+  <ellipse id="whb-sheen" cx="200" cy="172" rx="150" ry="56" fill="#ffffff" opacity="0.16"/>
+  <g id="whb-text" fill="#ffffff">
+    <rect x="112" y="164" width="124" height="26" rx="13"/>
+    <rect x="112" y="214" width="86" height="26" rx="13"/>
+  </g>
+  <polyline id="whb-wave" points="126,284 172,236 218,306 264,224 310,300 356,258 398,284" fill="none" stroke="#ffffff" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

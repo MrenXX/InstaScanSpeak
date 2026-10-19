@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Whisper iteration A: quiet ink bubble where text lines dissolve into sound">
+  <g id="wha-root">
+    <path id="wha-outline" d="M128 120 H292 A48 48 0 0 1 340 168 V282 A48 48 0 0 1 292 330 H176 L104 378 L112 330 H128 A48 48 0 0 1 80 282 V168 A48 48 0 0 1 128 120 Z" fill="none" stroke="#dfe7f4" stroke-width="32" stroke-linejoin="round"/>
+    <g id="wha-text" fill="#dfe7f4">
+      <rect x="112" y="164" width="124" height="26" rx="13"/>
+      <rect x="112" y="216" width="86" height="26" rx="13"/>
+      <rect x="112" y="268" width="108" height="26" rx="13"/>
+    </g>
+    <g id="wha-bars" fill="#5aa2ff">
+      <rect x="306" y="188" width="26" height="72" rx="13"/>
+      <rect x="342" y="158" width="26" height="136" rx="13"/>
+      <rect x="378" y="196" width="26" height="64" rx="13"/>
+    </g>
+  </g>
+</svg>
