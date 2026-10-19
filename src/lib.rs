@@ -82,7 +82,7 @@ const WM_OVERLAY_CLOSED: u32 = WM_APP + 7;
 const TIMER_RELEASE_SPEECH: usize = 3;
 const DEFAULT_SELECTED_HOTKEY: &str = "Ctrl+Alt+S";
 const DEFAULT_STOP_HOTKEY: &str = "Ctrl+Alt+Q";
-const DEFAULT_PAUSE_HOTKEY: &str = "Ctrl+Alt+P";
+const DEFAULT_PAUSE_HOTKEY: &str = "Ctrl+Alt+Z";
 const HOTKEY_CAPTURE: i32 = 1;
 const HOTKEY_CYCLE_LANGUAGE: i32 = 2;
 const TRAY_ID: u32 = 1;
@@ -1104,6 +1104,7 @@ impl AppState {
             capture_hotkey: self.capture_hotkey.display.clone(),
             copy_hotkey: self.settings.copy_hotkey.clone(),
             stop_hotkey: self.settings.stop_hotkey.clone(),
+            pause_hotkey: self.settings.pause_hotkey.clone(),
         };
         match tray::show(self.hwnd, self.tray_panel, &options) {
             Ok(window) => self.tray_panel = Some(window),

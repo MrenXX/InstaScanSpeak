@@ -30,6 +30,7 @@ pub struct Options {
     pub capture_hotkey: String,
     pub copy_hotkey: String,
     pub stop_hotkey: String,
+    pub pause_hotkey: String,
 }
 
 struct State {
@@ -65,9 +66,9 @@ pub fn show(owner: HWND, existing: Option<HWND>, options: &Options) -> Result<HW
             w!("InstaSpeak"),
             WS_POPUP | WS_BORDER,
             point.x - 360,
-            point.y - 500,
+            point.y - 536,
             360,
-            500,
+            536,
             None,
             None,
             None,
@@ -114,8 +115,8 @@ unsafe fn create_controls(
     .ok()?;
     let work = monitor.rcWork;
     let x = (point.x - scale(360)).clamp(work.left, (work.right - scale(360)).max(work.left));
-    let y = (point.y - scale(500)).clamp(work.top, (work.bottom - scale(500)).max(work.top));
-    SetWindowPos(hwnd, None, x, y, scale(360), scale(500), SWP_NOZORDER)?;
+    let y = (point.y - scale(536)).clamp(work.top, (work.bottom - scale(536)).max(work.top));
+    SetWindowPos(hwnd, None, x, y, scale(360), scale(536), SWP_NOZORDER)?;
     state.font = CreateFontW(
         -scale(14),
         0,
@@ -182,6 +183,11 @@ unsafe fn create_controls(
             format!("Stop reading     {}", options.stop_hotkey),
             156,
         ),
+        (
+            super::IDM_PAUSE,
+            format!("Pause/Resume     {}", options.pause_hotkey),
+            192,
+        ),
     ] {
         control(
             w!("BUTTON"),
@@ -200,7 +206,7 @@ unsafe fn create_controls(
         WINDOW_STYLE(0),
         0,
         16,
-        202,
+        238,
         328,
         24,
     )?;
@@ -210,7 +216,7 @@ unsafe fn create_controls(
         WS_TABSTOP | WINDOW_STYLE(TBS_AUTOTICKS),
         1,
         12,
-        228,
+        264,
         336,
         36,
     )?;
@@ -221,15 +227,15 @@ unsafe fn create_controls(
         WPARAM(1),
         LPARAM((options.rate + 10) as isize),
     );
-    control(w!("STATIC"), "Slowest", WINDOW_STYLE(0), 0, 16, 266, 80, 20)?;
-    control(w!("STATIC"), "Normal", WINDOW_STYLE(0), 0, 150, 266, 80, 20)?;
+    control(w!("STATIC"), "Slowest", WINDOW_STYLE(0), 0, 16, 302, 80, 20)?;
+    control(w!("STATIC"), "Normal", WINDOW_STYLE(0), 0, 150, 302, 80, 20)?;
     control(
         w!("STATIC"),
         "Fastest",
         WINDOW_STYLE(0),
         0,
         292,
-        266,
+        302,
         60,
         20,
     )?;
@@ -243,20 +249,20 @@ unsafe fn create_controls(
         .to_string(),
     ];
     for (id, name, entries, selected, y) in [
-        (VOICE, "Voice", &options.voices, options.voice_index, 290),
+        (VOICE, "Voice", &options.voices, options.voice_index, 326),
         (
             OCR_ENGINE,
             "OCR engine",
             &engines,
             usize::from(options.tiny_ocr),
-            344,
+            380,
         ),
         (
             LANGUAGE,
             "Windows OCR language",
             &options.languages,
             options.language_index,
-            398,
+            434,
         ),
     ] {
         control(w!("STATIC"), name, WINDOW_STYLE(0), 0, 16, y, 328, 22)?;
@@ -287,7 +293,7 @@ unsafe fn create_controls(
         WS_TABSTOP | WINDOW_STYLE(BS_AUTOCHECKBOX as u32),
         super::IDM_TOGGLE_STARTUP,
         16,
-        460,
+        496,
         240,
         26,
     )?;
@@ -303,7 +309,7 @@ unsafe fn create_controls(
         WS_TABSTOP,
         super::IDM_EXIT,
         274,
-        459,
+        495,
         70,
         28,
     )?;
@@ -366,6 +372,7 @@ unsafe extern "system" fn window_proc(
                 super::IDM_CAPTURE,
                 super::IDM_COPY,
                 super::IDM_STOP,
+                super::IDM_PAUSE,
                 super::IDM_EXIT,
             ]
             .contains(&id)

@@ -28,7 +28,7 @@ Right-click the tray icon and use `OCR engine` to switch between `PP-OCRv6 Tiny`
 - Press `Ctrl+Alt+A`, drag around screen text, and release to read it.
 - Press `Ctrl+Alt+D`, drag around screen text, and release to copy it without starting speech.
 - Press `Ctrl+Alt+Q` to stop. This also cancels pending reading requests.
-- Press `Ctrl+Alt+P` to pause or resume speech from the saved position.
+- Press `Ctrl+Alt+Z` to pause or resume speech from the saved position.
 - Press `Ctrl+Alt+W` to cycle the OCR language.
 - Right-click the tray icon for the inline speed slider, capture actions, voice and OCR-language selectors, startup, and Exit.
 
@@ -36,7 +36,7 @@ The slider is immediately visible in the right-click tray panel. It covers all 2
 
 Escape or right-click cancels a screen selection. A new reading request replaces the current speech.
 
-Pause/resume works with Windows voices and Northern English Male. Windows voices finish the current word before pausing. Stop clears the paused reading, and a new reading starts unpaused. Pressing pause while nothing is queued has no effect. Paused speech keeps its audio buffers and selected voice available for resume; use Stop to discard it. Run `Configure Hotkeys.cmd` to change the default `pause_hotkey=Ctrl+Alt+P`.
+Pause/resume works with Windows voices and Northern English Male. Windows voices finish the current word before pausing. Stop clears the paused reading, and a new reading starts unpaused. Pressing pause while nothing is queued has no effect. Paused speech keeps its audio buffers and selected voice available for resume; use Stop to discard it. The tray panel lists the current shortcut on its `Pause/Resume` button. Run `Configure Hotkeys.cmd` to change the default `pause_hotkey=Ctrl+Alt+Z`.
 
 The copy and language shortcuts are the original InstOCR defaults. Exit the standalone InstOCR app before using them here. Run `Configure Hotkeys.cmd` to change shortcuts, then restart. `instaspeak-cli.exe --restore-ocr-hotkeys` imports the original InstOCR shortcut preferences when available. Settings are stored in `%APPDATA%\InstaSpeak\rust-settings.txt`. The saved OCR engine is `ocr_engine=windows` or `ocr_engine=tiny`.
 

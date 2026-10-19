@@ -42,7 +42,7 @@ function Read-Selected {
  $window=[TestNative]::FindWindow('InstaSpeakRustHiddenWindow',$null)
  [TestNative]::PostMessage($window,0x111,[IntPtr]104,[IntPtr]0) | Out-Null
 }
-function Toggle($paused,$key=0x50){
+function Toggle($paused,$key=0x5A){
  $pattern="speech_paused=$($paused.ToString().ToLowerInvariant())"
  $before=Count $pattern
  [TestNative]::Hotkey($key)
@@ -60,8 +60,8 @@ try {
   [IO.File]::WriteAllText($settings,"voice_id=$voice`nrate=0`nocr_engine=tiny`n")
   $log=Join-Path $artifacts "pause-$name.log"
   $resident=Start-Process $cli -ArgumentList '--resident' -WindowStyle Hidden -PassThru -RedirectStandardOutput $log -RedirectStandardError (Join-Path $artifacts "pause-$name-error.log")
-  Wait-For {(Get-Content $log -Raw) -match 'pause/resume speech Ctrl\+Alt\+P'} 'pause hotkey registration'
-  [TestNative]::Hotkey(0x50)
+  Wait-For {(Get-Content $log -Raw) -match 'pause/resume speech Ctrl\+Alt\+Z'} 'pause hotkey registration'
+  [TestNative]::Hotkey(0x5A)
   Wait-For {(Count 'speech_pause_ignored=true') -eq 1} 'idle pause is a no-op'
   Read-Selected
   Wait-For {(Count 'speech_queued_ms=') -eq 1} 'speech queued'
@@ -74,7 +74,7 @@ try {
   Start-Sleep -Milliseconds 250
   Toggle $true
   [TestNative]::Hotkey(0x51)
-  [TestNative]::Hotkey(0x50)
+  [TestNative]::Hotkey(0x5A)
   Wait-For {(Count 'speech_pause_ignored=true') -eq 2} 'Stop clears paused state'
   $queued=Count 'speech_queued_ms='
   Read-Selected
@@ -87,28 +87,28 @@ try {
   Toggle $true
   Toggle $false
   [TestNative]::Hotkey(0x51)
-  Write-Host "PASS $name Ctrl+Alt+P: idle no-op, pause before playback, 31-second hold, resume, repeated toggles, Stop and replacement reading"
+  Write-Host "PASS $name Ctrl+Alt+Z: idle no-op, pause before playback, 31-second hold, resume, repeated toggles, Stop and replacement reading"
   [TestNative]::PostMessage([TestNative]::FindWindow('InstaSpeakRustHiddenWindow',$null),0x111,[IntPtr]199,[IntPtr]0) | Out-Null
   if(!$resident.WaitForExit(5000)){throw 'Resident did not exit'}
   $resident=$null
  }
- # The new default must not take an existing custom Ctrl+Alt+P binding.
- [IO.File]::WriteAllText($settings,"selected_hotkey=Ctrl+Alt+P`nocr_engine=tiny`n")
+ # The new default must not take an existing custom Ctrl+Alt+Z binding.
+ [IO.File]::WriteAllText($settings,"selected_hotkey=Ctrl+Alt+Z`nocr_engine=tiny`n")
  $log=Join-Path $artifacts 'pause-custom.log'
  $resident=Start-Process $cli -ArgumentList '--resident' -WindowStyle Hidden -PassThru -RedirectStandardOutput $log -RedirectStandardError (Join-Path $artifacts 'pause-custom-error.log')
- Wait-For {(Get-Content $log -Raw) -match 'pause/resume speech Ctrl\+Alt\+R'} 'non-conflicting pause default'
- if((Get-Content $log -Raw) -notmatch 'read selection Ctrl\+Alt\+P'){throw 'Existing custom shortcut changed'}
+ Wait-For {(Get-Content $log -Raw) -match 'pause/resume speech Ctrl\+Alt\+P'} 'non-conflicting pause default'
+ if((Get-Content $log -Raw) -notmatch 'read selection Ctrl\+Alt\+Z'){throw 'Existing custom shortcut changed'}
  Read-Selected
  Wait-For {(Count 'speech_queued_ms=') -gt 0} 'custom reading'
- Toggle $true 0x52
+ Toggle $true 0x50
  $queued=Count 'speech_queued_ms='
  Select-FixtureText
- [TestNative]::Hotkey(0x50)
+ [TestNative]::Hotkey(0x5A)
  Wait-For {(Count 'speech_queued_ms=') -gt $queued} 'original custom read shortcut'
- Toggle $true 0x52
- Toggle $false 0x52
+ Toggle $true 0x50
+ Toggle $false 0x50
  [TestNative]::Hotkey(0x51)
- Write-Host 'PASS custom Ctrl+Alt+P read shortcut preserved and Ctrl+Alt+R toggles pause/resume'
+ Write-Host 'PASS custom Ctrl+Alt+Z read shortcut preserved and Ctrl+Alt+P toggles pause/resume'
 } finally {
  if($resident -and !$resident.HasExited){[TestNative]::PostMessage([TestNative]::FindWindow('InstaSpeakRustHiddenWindow',$null),0x111,[IntPtr]199,[IntPtr]0) | Out-Null;$resident.WaitForExit(5000) | Out-Null}
  if($fixture -and !$fixture.HasExited){Stop-Process -Id $fixture.Id}
