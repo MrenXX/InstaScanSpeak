@@ -7,7 +7,7 @@ import time
 import psutil
 
 root = Path(__file__).resolve().parents[1]
-helper = root / "ocr-helper/target/release/instaspeak-ocr.exe"
+helper = root / "ocr-helper/target/release/instascanspeak-ocr.exe"
 models = root / "artifacts/tiny-native/models"
 fixtures = root / "artifacts/ocr-fixtures"
 manifest = json.loads((fixtures / "fixtures.json").read_text(encoding="utf-8-sig"))

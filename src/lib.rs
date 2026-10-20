@@ -103,7 +103,8 @@ const IDM_EXIT: usize = 199;
 const IDM_LANGUAGE_BASE: usize = 300;
 const IDM_OCR_ENGINE_BASE: usize = 600;
 
-const STARTUP_VALUE_NAME: &str = "InstaSpeak";
+const STARTUP_VALUE_NAME: &str = "InstaScanSpeak";
+// The hidden-window and mutex names stay stable for upgrades from InstaSpeak.
 const RUN_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
 const DEFAULT_CAPTURE_HOTKEY: &str = "Ctrl+Alt+A";
 const DEFAULT_CYCLE_HOTKEY: &str = "Ctrl+Alt+W";
@@ -144,7 +145,7 @@ pub fn diagnostics_main() -> AnyResult<()> {
 
 fn diagnostics(args: &[String]) -> AnyResult<()> {
     match args.first().map(String::as_str) {
-        Some("--version") => println!("InstaSpeak {}\n{}", env!("CARGO_PKG_VERSION"), std::env::current_exe()?.display()),
+        Some("--version") => println!("InstaScanSpeak {}\n{}", env!("CARGO_PKG_VERSION"), std::env::current_exe()?.display()),
         Some("--list-voices") => {
             for (id, label) in speech::voices()? { println!("{label}\t{id}"); }
         }
@@ -158,7 +159,7 @@ fn diagnostics(args: &[String]) -> AnyResult<()> {
             let mut speech = speech::Speech::new();
             for i in 1..=3 {
                 println!("neural_run={i}");
-                speech.speak("InstaSpeak is ready.", neural::VOICE_ID, 0)?;
+                speech.speak("InstaScanSpeak is ready.", neural::VOICE_ID, 0)?;
                 speech.wait(30_000)?;
             }
         }
@@ -261,7 +262,7 @@ fn diagnostics(args: &[String]) -> AnyResult<()> {
 
 fn show_fatal_error(message: &str) {
     unsafe {
-        let title = wide_null("InstaSpeak Rust startup failed");
+        let title = wide_null("InstaScanSpeak Rust startup failed");
         let message = wide_null(message);
         let _ = MessageBoxW(
             null_hwnd(),
@@ -281,7 +282,8 @@ fn run() -> AnyResult<()> {
 
     if args.iter().any(|arg| arg != "--resident-warm") {
         return Err(
-            "Use instaspeak-cli.exe for --measure, --list-languages, and --capture-rect.".into(),
+            "Use instascanspeak-cli.exe for --measure, --list-languages, and --capture-rect."
+                .into(),
         );
     }
 
@@ -290,7 +292,7 @@ fn run() -> AnyResult<()> {
 
 fn run_resident_app(resident_warm: bool) -> AnyResult<()> {
     let _single_instance = SingleInstanceGuard::acquire()?;
-    println!("InstaSpeak {} starting.", env!("CARGO_PKG_VERSION"));
+    println!("InstaScanSpeak {} starting.", env!("CARGO_PKG_VERSION"));
     println!(
         "mode: {}",
         if resident_warm {
@@ -308,12 +310,12 @@ fn run_resident_app(resident_warm: bool) -> AnyResult<()> {
             IDC_ARROW,
         )?;
         register_window_class(
-            "InstaSpeakRustSelectionOverlay",
+            "InstaScanSpeakRustSelectionOverlay",
             Some(overlay_wnd_proc),
             IDC_CROSS,
         )?;
         register_window_class(
-            "InstaSpeakRustStatusPopup",
+            "InstaScanSpeakRustStatusPopup",
             Some(status_wnd_proc),
             IDC_ARROW,
         )?;
@@ -379,7 +381,7 @@ impl SingleInstanceGuard {
             let handle = CreateMutexW(None, true, PCWSTR(name.as_ptr()))?;
             if GetLastError() == ERROR_ALREADY_EXISTS {
                 let _ = CloseHandle(handle);
-                return Err("InstaSpeak is already running.".into());
+                return Err("InstaScanSpeak is already running.".into());
             }
             Ok(Self { handle })
         }
@@ -569,6 +571,7 @@ impl RustSettings {
 }
 
 fn rust_settings_path() -> PathBuf {
+    // Keep the original profile so the rebrand preserves settings and hotkeys.
     let base = std::env::var_os("APPDATA")
         .map(PathBuf::from)
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
@@ -802,7 +805,7 @@ impl AppState {
 
     fn install_tray_icon(&mut self) {
         unsafe {
-            let mut data = notify_icon_data(self.hwnd, "InstaSpeak Rust: ready");
+            let mut data = notify_icon_data(self.hwnd, "InstaScanSpeak Rust: ready");
             data.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP;
             data.uCallbackMessage = WM_TRAY;
             data.hIcon = app_icon();
@@ -986,7 +989,7 @@ impl AppState {
         {
             Ok(ms) => {
                 self.update_status(&format!(
-                    "InstaSpeak: reading. {} pauses; {} stops.",
+                    "InstaScanSpeak: reading. {} pauses; {} stops.",
                     self.settings.pause_hotkey, self.settings.stop_hotkey
                 ));
                 println!("speech_queued_ms={ms:.2}");
@@ -1007,7 +1010,7 @@ impl AppState {
                 let _ = DestroyWindow(hwnd);
             }
         }
-        self.update_status("InstaSpeak: ready");
+        self.update_status("InstaScanSpeak: ready");
     }
 
     fn toggle_pause(&mut self) {
@@ -1015,7 +1018,7 @@ impl AppState {
             Ok(Some(paused)) => {
                 println!("speech_paused={paused}");
                 self.update_status(&format!(
-                    "InstaSpeak: {}. {} {}; {} stops.",
+                    "InstaScanSpeak: {}. {} {}; {} stops.",
                     if paused { "paused" } else { "reading" },
                     self.settings.pause_hotkey,
                     if paused { "resumes" } else { "pauses" },
@@ -1834,7 +1837,7 @@ unsafe fn register_window_class(
 
 unsafe fn create_hidden_window(app: *mut AppState) -> WinResult<HWND> {
     let class_name = wide_null("InstaSpeakRustHiddenWindow");
-    let title = wide_null("InstaSpeak Rust Native");
+    let title = wide_null("InstaScanSpeak Rust Native");
     CreateWindowExW(
         WINDOW_EX_STYLE(0),
         PCWSTR(class_name.as_ptr()),
@@ -1856,8 +1859,8 @@ unsafe fn show_overlay(
     capture: ScreenCapture,
     request_id: u64,
 ) -> WinResult<HWND> {
-    let class_name = wide_null("InstaSpeakRustSelectionOverlay");
-    let title = wide_null("InstaSpeak Rust Selection");
+    let class_name = wide_null("InstaScanSpeakRustSelectionOverlay");
+    let title = wide_null("InstaScanSpeak Rust Selection");
     let x = capture.x;
     let y = capture.y;
     let width = capture.width;
@@ -1897,8 +1900,8 @@ unsafe fn show_overlay(
 }
 
 unsafe fn show_status_popup(owner: HWND, text: &str) -> WinResult<HWND> {
-    let class_name = wide_null("InstaSpeakRustStatusPopup");
-    let title = wide_null("InstaSpeak Rust Status");
+    let class_name = wide_null("InstaScanSpeakRustStatusPopup");
+    let title = wide_null("InstaScanSpeak Rust Status");
     let width = 420;
     let height = 52;
     let x = GetSystemMetrics(SM_XVIRTUALSCREEN) + GetSystemMetrics(SM_CXVIRTUALSCREEN) - width - 24;
@@ -1957,7 +1960,7 @@ fn app_icon() -> HICON {
     *ICON.0.get_or_init(|| unsafe {
         let path = std::env::current_exe()
             .ok()
-            .and_then(|exe| exe.parent().map(|dir| dir.join("instaspeak.ico")));
+            .and_then(|exe| exe.parent().map(|dir| dir.join("instascanspeak.ico")));
         if let Some(path) = path {
             if path.is_file() {
                 let wide = wide_null(&path.to_string_lossy());
@@ -1969,12 +1972,12 @@ fn app_icon() -> HICON {
                     0,
                     LR_DEFAULTSIZE | LR_LOADFROMFILE,
                 ) {
-                    println!("tray icon: loaded instaspeak.ico");
+                    println!("tray icon: loaded instascanspeak.ico");
                     return HICON(raw.0);
                 }
             }
         }
-        println!("tray icon: instaspeak.ico not found, using default");
+        println!("tray icon: instascanspeak.ico not found, using default");
         LoadIconW(null_hinstance(), IDI_APPLICATION).unwrap_or_default()
     })
 }

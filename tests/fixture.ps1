@@ -22,7 +22,7 @@ public sealed class FixtureFocus : NativeWindow {
 [FixtureDpi]::SetProcessDpiAwarenessContext([IntPtr](-4)) | Out-Null
 if ($UseWpf) {
     Add-Type -AssemblyName PresentationFramework
-    $window = [Windows.Markup.XamlReader]::Parse('<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" Width="950" Height="330" Left="100" Top="100" Topmost="True" Title="InstaSpeak UI Automation fixture"><TextBox Name="SelectedText" Text="UI Automation selected text is read aloud." FontSize="24" Margin="25" VerticalAlignment="Top"/></Window>')
+    $window = [Windows.Markup.XamlReader]::Parse('<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" Width="950" Height="330" Left="100" Top="100" Topmost="True" Title="InstaScanSpeak UI Automation fixture"><TextBox Name="SelectedText" Text="UI Automation selected text is read aloud." FontSize="24" Margin="25" VerticalAlignment="Top"/></Window>')
     $textBox = $window.FindName('SelectedText')
     $window.Add_Activated({ $textBox.Focus() | Out-Null; $textBox.SelectAll() })
     $window.Add_ContentRendered({
@@ -37,7 +37,7 @@ if ($UseWpf) {
     exit
 }
 $form = New-Object Windows.Forms.Form
-$form.Text = 'InstaSpeak integration fixture'
+$form.Text = 'InstaScanSpeak integration fixture'
 $form.StartPosition = 'Manual'
 $form.Location = [Drawing.Point]::new(100,100)
 $form.ClientSize = [Drawing.Size]::new(950,330)
@@ -47,13 +47,13 @@ $textBox = New-Object Windows.Forms.TextBox
 $textBox.Location = [Drawing.Point]::new(30,25)
 $textBox.Size = [Drawing.Size]::new(880,50)
 $textBox.Font = [Drawing.Font]::new('Segoe UI',22)
-$textBox.Text = 'Selected text is read aloud by InstaSpeak.'
+$textBox.Text = 'Selected text is read aloud by InstaScanSpeak.'
 $form.Controls.Add($textBox)
 $label = New-Object Windows.Forms.Label
 $label.Location = [Drawing.Point]::new(30,115)
 $label.Size = [Drawing.Size]::new(880,140)
 $label.Font = [Drawing.Font]::new('Segoe UI',26)
-$label.Text = 'InstaSpeak reads this screen text aloud.'
+$label.Text = 'InstaScanSpeak reads this screen text aloud.'
 $form.Controls.Add($label)
 $form.Add_Shown({
     [FixtureFocus]::Install($form,$textBox)

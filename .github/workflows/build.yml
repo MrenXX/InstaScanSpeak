@@ -13,13 +13,12 @@ jobs:
           components: rustfmt
       - run: cargo fmt --check
       - run: cargo fmt --manifest-path ocr-helper/Cargo.toml --check
-      - run: cargo build --release --locked
-      - run: cargo build --manifest-path ocr-helper/Cargo.toml --release --locked
+      - run: ./build.ps1
       - run: cargo test --release --locked
-      - run: ./target/release/instaspeak-cli.exe --validate-hotkey Ctrl+Alt+S
+      - run: ./target/release/instascanspeak-cli.exe --validate-hotkey Ctrl+Alt+S
+      - run: python tests/hotkey-config.py
+      - run: ./tests/rebrand.ps1
       - uses: actions/upload-artifact@v4
         with:
-          name: instaspeak-windows-x64
-          path: |
-            target/release/*.exe
-            ocr-helper/target/release/instaspeak-ocr.exe
+          name: instascanspeak-windows-x64
+          path: dist/windows-x64/*

@@ -47,11 +47,11 @@ The voice and runtime are downloaded directly from their upstream projects.
 '@)
 Get-ChildItem (Join-Path $root 'piper') -File -Recurse | Unblock-File
 if ($SelectVoice) {
-    $cli = Join-Path $root 'instaspeak-cli.exe'
-    if (!(Test-Path -LiteralPath $cli)) { $cli = Join-Path $PSScriptRoot 'dist\windows-x64\instaspeak-cli.exe' }
-    if (!(Test-Path -LiteralPath $cli)) { throw 'Install or build InstaSpeak before selecting the voice.' }
-    $app = Join-Path $root 'instaspeak.exe'
-    $running = @(Get-Process instaspeak -ErrorAction SilentlyContinue | Where-Object { $_.Path -ieq $app })
+    $cli = Join-Path $root 'instascanspeak-cli.exe'
+    if (!(Test-Path -LiteralPath $cli)) { $cli = Join-Path $PSScriptRoot 'dist\windows-x64\instascanspeak-cli.exe' }
+    if (!(Test-Path -LiteralPath $cli)) { throw 'Install or build InstaScanSpeak before selecting the voice.' }
+    $app = Join-Path $root 'instascanspeak.exe'
+    $running = @(Get-Process instascanspeak -ErrorAction SilentlyContinue | Where-Object { $_.Path -ieq $app })
     if ($running.Count -gt 0) {
         & $cli --trigger exit
         $running | Wait-Process -Timeout 5 -ErrorAction SilentlyContinue
@@ -60,4 +60,4 @@ if ($SelectVoice) {
     if ($LASTEXITCODE -ne 0) { throw 'Could not select the installed voice.' }
     if ($running.Count -gt 0) { Start-Process -FilePath $app -WindowStyle Hidden }
 }
-Write-Host 'Northern English Male installed. An active InstaSpeak instance is restarted when selecting this voice.'
+Write-Host 'Northern English Male installed. An active InstaScanSpeak instance is restarted when selecting this voice.'

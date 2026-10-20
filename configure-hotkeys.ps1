@@ -1,7 +1,7 @@
 $ErrorActionPreference = 'Stop'
-$cli = Join-Path $env:LOCALAPPDATA 'InstaSpeak\instaspeak-cli.exe'
-if (!(Test-Path -LiteralPath $cli)) { $cli = Join-Path $PSScriptRoot 'dist\windows-x64\instaspeak-cli.exe' }
-if (!(Test-Path -LiteralPath $cli)) { throw 'Build or install InstaSpeak first.' }
+$cli = Join-Path $env:LOCALAPPDATA 'InstaSpeak\instascanspeak-cli.exe'
+if (!(Test-Path -LiteralPath $cli)) { $cli = Join-Path $PSScriptRoot 'dist\windows-x64\instascanspeak-cli.exe' }
+if (!(Test-Path -LiteralPath $cli)) { throw 'Build or install InstaScanSpeak first.' }
 $settingsPath = Join-Path $env:APPDATA 'InstaSpeak\rust-settings.txt'
 $settings = [ordered]@{ language_tag=''; capture_hotkey='Ctrl+Alt+A'; copy_hotkey='Ctrl+Alt+D'; cycle_hotkey='Ctrl+Alt+W'; selected_hotkey='Ctrl+Alt+S'; stop_hotkey='Ctrl+Alt+Q'; pause_hotkey='Ctrl+Alt+Z'; voice_id=''; rate='0'; ocr_engine='windows' }
 if (Test-Path -LiteralPath $settingsPath) {
@@ -25,4 +25,4 @@ foreach ($key in @('selected_hotkey','capture_hotkey','copy_hotkey','stop_hotkey
 New-Item -ItemType Directory -Force -Path (Split-Path -Parent $settingsPath) | Out-Null
 $lines = foreach ($key in $settings.Keys) { "$key=$($settings[$key])" }
 [IO.File]::WriteAllLines($settingsPath, [string[]]$lines, [Text.UTF8Encoding]::new($false))
-Write-Host 'Saved. Exit InstaSpeak from its tray menu and start it again to apply the hotkeys.'
+Write-Host 'Saved. Exit InstaScanSpeak from its tray menu and start it again to apply the hotkeys.'

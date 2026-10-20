@@ -19,7 +19,7 @@ pub fn assets() -> Option<(PathBuf, PathBuf)> {
         roots.push(PathBuf::from(local).join("InstaSpeak"));
     }
     roots.into_iter().find_map(|root| {
-        let helper = root.join("instaspeak-ocr.exe");
+        let helper = root.join("instascanspeak-ocr.exe");
         let models = root.join("tiny-ocr");
         (helper.is_file()
             && ["det.onnx", "rec.onnx", "characters.txt", "onnxruntime.dll"]

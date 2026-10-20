@@ -1,4 +1,6 @@
-# InstaSpeak
+<img src="resources/logo.svg" width="112" alt="InstaScanSpeak tray logo">
+
+# InstaScanSpeak
 
 A small Windows tray app that copies text from screen regions and reads highlighted or captured text aloud.
 
@@ -8,13 +10,15 @@ This is the combined OCR and speech project. Copy-only capture and read-aloud ca
 
 ## Install
 
-Download the Windows ZIP from [Releases](https://github.com/MrenXX/instaspeak-rust/releases), extract it, and run `Install InstaSpeak.cmd`.
+Download the Windows ZIP from [Releases](https://github.com/MrenXX/InstaScanSpeak/releases), extract it, and run `Install InstaScanSpeak.cmd`.
 
 The installer copies the app to `%LOCALAPPDATA%\InstaSpeak`, adds a Start menu shortcut, enables startup at login, and launches the tray app. It does not need administrator rights.
 
-To update a checkout using its bundled Windows executables, run `git pull`, then `install.ps1`. Run `build.ps1` first if you want to compile from source. A pull alone does not replace the installed app. Check the installed build with `& "$env:LOCALAPPDATA\InstaSpeak\instaspeak-cli.exe" --version`. The installer also prints its installed version and path. Settings and downloaded voices survive updates.
+To update a checkout using its bundled Windows executables, run `git pull`, then `install.ps1`. Run `build.ps1` first if you want to compile from source. A pull alone does not replace the installed app. Check the installed build with `& "$env:LOCALAPPDATA\InstaScanSpeak\instascanspeak-cli.exe" --version`. The installer also prints its installed version and path. Settings and downloaded voices survive updates.
 
-To run without installing, open `dist\windows-x64\instaspeak.exe`.
+InstaScanSpeak is the new name for the combined InstaSpeak and InstOCR app. Updates keep the existing `%LOCALAPPDATA%\InstaSpeak` installation and `%APPDATA%\InstaSpeak` settings directories so saved shortcuts, voices, and OCR models continue to work. The separate InstOCR app is unchanged.
+
+To run without installing, open `dist\windows-x64\instascanspeak.exe`.
 
 To add Northern English Male, run `Install Northern English Voice.cmd` after installing the app. It downloads a verified 63 MB voice model and a 22 MB native runtime directly from their upstream projects, selects the voice, and restarts an active installed app. Later reads work offline. The model and runtime stay installed across app updates and are not bundled into the small app ZIP.
 
@@ -38,7 +42,7 @@ Escape or right-click cancels a screen selection. A new reading request replaces
 
 Pause/resume works with Windows voices and Northern English Male. Windows voices finish the current word before pausing. Stop clears the paused reading, and a new reading starts unpaused. Pressing pause while nothing is queued has no effect. Paused speech keeps its audio buffers and selected voice available for resume; use Stop to discard it. The tray panel lists the current shortcut on its `Pause/Resume` button. Run `Configure Hotkeys.cmd` to change the default `pause_hotkey=Ctrl+Alt+Z`.
 
-The copy and language shortcuts are the original InstOCR defaults. Exit the standalone InstOCR app before using them here. Run `Configure Hotkeys.cmd` to change shortcuts, then restart. `instaspeak-cli.exe --restore-ocr-hotkeys` imports the original InstOCR shortcut preferences when available. Settings are stored in `%APPDATA%\InstaSpeak\rust-settings.txt`. The saved OCR engine is `ocr_engine=windows` or `ocr_engine=tiny`.
+The copy and language shortcuts are the original InstOCR defaults. Exit the standalone InstOCR app before using them here. Run `Configure Hotkeys.cmd` to change shortcuts, then restart. `instascanspeak-cli.exe --restore-ocr-hotkeys` imports the original InstOCR shortcut preferences when available. Settings are stored in `%APPDATA%\InstaSpeak\rust-settings.txt`. The saved OCR engine is `ocr_engine=windows` or `ocr_engine=tiny`.
 
 ## Voices and compatibility
 
@@ -79,23 +83,23 @@ Requires Windows 10 or 11 x64, Rust 1.95 or newer, and a C compiler for the opti
 
 ```powershell
 .\build.ps1
-.\dist\windows-x64\instaspeak-cli.exe --list-voices
-.\dist\windows-x64\instaspeak-cli.exe --list-languages
-.\dist\windows-x64\instaspeak-cli.exe --benchmark
-.\dist\windows-x64\instaspeak-cli.exe --benchmark-neural
+.\dist\windows-x64\instascanspeak-cli.exe --list-voices
+.\dist\windows-x64\instascanspeak-cli.exe --list-languages
+.\dist\windows-x64\instascanspeak-cli.exe --benchmark
+.\dist\windows-x64\instascanspeak-cli.exe --benchmark-neural
 powershell -NoProfile -STA -ExecutionPolicy Bypass -File .\tests\integration.ps1
 powershell -NoProfile -STA -ExecutionPolicy Bypass -File .\tests\neural.ps1
 powershell -NoProfile -STA -ExecutionPolicy Bypass -File .\tests\tiny.ps1
 powershell -NoProfile -STA -ExecutionPolicy Bypass -File .\tests\pause.ps1
 ```
 
-The integration test opens temporary Windows forms and starts a diagnostic tray instance with isolated settings. Exit any running InstaSpeak instance first. It tests selected text, registered hotkeys, the inline tray slider and saved rate, live changes, popup dismissal, both capture actions, OCR, speech, cancellation, clipboard behavior, and memory after idle. It restores the original clipboard after testing copy-only capture. It requires an unlocked desktop with an audio output device. Avoid interacting with the desktop while it runs.
+The integration test opens temporary Windows forms and starts a diagnostic tray instance with isolated settings. Exit any running InstaScanSpeak instance first. It tests selected text, registered hotkeys, the inline tray slider and saved rate, live changes, popup dismissal, both capture actions, OCR, speech, cancellation, clipboard behavior, and memory after idle. It restores the original clipboard after testing copy-only capture. It requires an unlocked desktop with an audio output device. Avoid interacting with the desktop while it runs.
 
 The neural test requires the optional voice. It checks real playback, warm model reuse, idle unloading, rate changes, cancellation during synthesis and playback, no audio restarting after Stop, and cleanup after an abrupt parent-process exit. The ignored `stop_interrupts_audio_playback` Rust test independently verifies that Stop releases the audio device within 250 ms.
 
 The Tiny test requires both optional downloads. It checks actual capture hotkeys, clipboard output, OCR-to-neural speech, tray engine selection, warm reuse, idle unload, cancellation, recovery, and abrupt-parent cleanup. `python tests/tiny-benchmark.py` compares the native helper on the generated fixtures. Python is needed only for benchmark tooling.
 
-`instaspeak-cli.exe --check-tiny` verifies the installed OCR helper and models. `--set-ocr-engine windows|tiny` changes the saved engine for the next app restart.
+`instascanspeak-cli.exe --check-tiny` verifies the installed OCR helper and models. `--set-ocr-engine windows|tiny` changes the saved engine for the next app restart.
 
 Other diagnostics include `--version`, `--speak TEXT`, `--read-selection`, `--capture-rect X Y W H`, `--validate-hotkey HOTKEY`, `--set-voice ID`, `--restore-ocr-hotkeys`, and `--trigger selected|capture|copy|pause|stop|exit`. Rectangle coordinates use physical pixels. `--resident` runs the tray app with console diagnostics. Diagnostics print recognized or selected text when explicitly requested. The neural helper writes temporary audio files and the app deletes them before playback.
 

@@ -1,4 +1,4 @@
-InstaSpeak Tiny OCR helper dependency notices. Models and ONNX Runtime have separate upstream notices.
+InstaScanSpeak Tiny OCR helper dependency notices. Models and ONNX Runtime have separate upstream notices.
 
 
 ============================================================

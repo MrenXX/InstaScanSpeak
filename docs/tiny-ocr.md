@@ -1,6 +1,6 @@
 # Native Tiny OCR
 
-InstaSpeak v0.5 adds PP-OCRv6 Tiny as an optional local engine. Run `Install Tiny OCR.cmd` after installing the app. The installer selects Tiny. Existing voice, rate and hotkey preferences stay unchanged.
+InstaScanSpeak v0.5 adds PP-OCRv6 Tiny as an optional local engine. Run `Install Tiny OCR.cmd` after installing the app. The installer selects Tiny. Existing voice, rate and hotkey preferences stay unchanged.
 
 The tray's `OCR engine` selector switches both capture actions. `Ctrl+Alt+D` still copies OCR text, `Ctrl+Alt+A` reads it, and `Ctrl+Alt+Q` cancels OCR or speech. `Ctrl+Alt+W` retains the Windows OCR language preference. Tiny recognizes its supported languages automatically.
 
@@ -19,9 +19,9 @@ After 30 seconds without OCR commands, the helper exits and Windows releases its
 
 ## Files and downloads
 
-The small app package includes `instaspeak-ocr.exe`, a roughly 1.2 MB native Rust helper. The main tray executable does not link ONNX Runtime or the OCR model libraries.
+The small app package includes `instascanspeak-ocr.exe`, a roughly 1.2 MB native Rust helper. The main tray executable does not link ONNX Runtime or the OCR model libraries.
 
-Optional assets install under `%LOCALAPPDATA%\InstaSpeak\tiny-ocr`:
+Optional assets install under `%LOCALAPPDATA%\InstaScanSpeak\tiny-ocr`:
 
 - `det.onnx`, 1,829,618 bytes.
 - `rec.onnx`, 4,489,813 bytes.

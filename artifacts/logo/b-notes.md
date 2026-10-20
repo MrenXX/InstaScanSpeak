@@ -1,4 +1,4 @@
-# InstaSpeak logo candidates
+# InstaScanSpeak logo candidates
 
 ## b1 - Bubble Bites (flat bold geometric tile)
 A dark rounded app tile holds a bold white speech bubble filled with four dark text lines while three teal sound bars emerge to its right.

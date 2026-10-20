@@ -1,6 +1,6 @@
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent $PSScriptRoot
-$cli=Join-Path $root 'dist/windows-x64/instaspeak-cli.exe'
+$cli=Join-Path $root 'dist/windows-x64/instascanspeak-cli.exe'
 $artifacts=Join-Path $root 'artifacts'
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -Path (Join-Path $PSScriptRoot 'native-test.cs')

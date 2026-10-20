@@ -21,9 +21,12 @@ try {
     if ($LASTEXITCODE -ne 0) {throw 'Tiny OCR helper build failed.'}
     $dist = Join-Path $PSScriptRoot 'dist\windows-x64'
     New-Item -ItemType Directory -Force -Path $dist | Out-Null
-    Copy-Item -LiteralPath 'target\release\instaspeak.exe', 'target\release\instaspeak-cli.exe' -Destination $dist -Force
-    Copy-Item -LiteralPath 'resources\instaspeak.ico' -Destination $dist -Force
-    Copy-Item -LiteralPath 'ocr-helper\target\release\instaspeak-ocr.exe' -Destination $dist -Force
+    Copy-Item -LiteralPath 'target\release\instascanspeak.exe', 'target\release\instascanspeak-cli.exe' -Destination $dist -Force
+    Copy-Item -LiteralPath 'resources\instascanspeak.ico' -Destination $dist -Force
+    Copy-Item -LiteralPath 'ocr-helper\target\release\instascanspeak-ocr.exe' -Destination $dist -Force
+    foreach ($legacy in @('instaspeak.exe', 'instaspeak-cli.exe', 'instaspeak-ocr.exe', 'instaspeak.ico')) {
+        Remove-Item -LiteralPath (Join-Path $dist $legacy) -ErrorAction SilentlyContinue
+    }
 } finally {
     $env:PATH=$savedPath
     $env:CC=$savedCc

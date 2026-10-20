@@ -1,6 +1,6 @@
 $ErrorActionPreference = 'Stop'
 $projectDir = Split-Path -Parent $PSScriptRoot
-$cli = Join-Path $projectDir 'dist\windows-x64\instaspeak-cli.exe'
+$cli = Join-Path $projectDir 'dist\windows-x64\instascanspeak-cli.exe'
 $artifacts = Join-Path $projectDir 'artifacts'
 New-Item -ItemType Directory -Force -Path $artifacts | Out-Null
 Add-Type -AssemblyName System.Windows.Forms
@@ -37,7 +37,7 @@ try {
     [TestNative]::FocusFixture([IntPtr]$state.form,[IntPtr]$state.input)
     $clipboardSequence = [TestNative]::GetClipboardSequenceNumber()
     $selection = & $cli --read-selection
-    if ($LASTEXITCODE -ne 0 -or ($selection -join "`n") -notmatch 'Selected text is read aloud by InstaSpeak') { throw "Selection failed: $selection" }
+    if ($LASTEXITCODE -ne 0 -or ($selection -join "`n") -notmatch 'Selected text is read aloud by InstaScanSpeak') { throw "Selection failed: $selection" }
     Write-Host "PASS selected text: $selection"
     $beforeSpeech = (Get-Process -Id $residentProcess.Id).WorkingSet64
     [TestNative]::Hotkey(0x53)
@@ -45,8 +45,8 @@ try {
     Write-Host 'PASS registered selection hotkey to speech'
     $mainWindow = [TestNative]::FindWindow('InstaSpeakRustHiddenWindow',$null)
     [TestNative]::PostMessage($mainWindow,0x8001,[IntPtr]1,[IntPtr]0x205) | Out-Null
-    Wait-For { [TestNative]::FindWindow('InstaSpeakTrayPanel','InstaSpeak') -ne [IntPtr]::Zero } 'speed slider'
-    $speedWindow = [TestNative]::FindWindow('InstaSpeakTrayPanel','InstaSpeak')
+    Wait-For { [TestNative]::FindWindow('InstaScanSpeakTrayPanel','InstaScanSpeak') -ne [IntPtr]::Zero } 'speed slider'
+    $speedWindow = [TestNative]::FindWindow('InstaScanSpeakTrayPanel','InstaScanSpeak')
     Wait-For { [SpeedEvidence]::GetDlgItem($speedWindow,1) -ne [IntPtr]::Zero } 'tray slider creation'
     $slider = [SpeedEvidence]::GetDlgItem($speedWindow,1)
     if ($slider -eq [IntPtr]::Zero) { throw 'Native trackbar missing' }
@@ -60,8 +60,8 @@ try {
     [SpeedEvidence]::Capture($speedWindow,(Join-Path $artifacts 'tray_panel_v0_4.png'))
     [TestNative]::SendMessage($speedWindow,0x10,[IntPtr]0,[IntPtr]0) | Out-Null
     [TestNative]::PostMessage($mainWindow,0x8001,[IntPtr]1,[IntPtr]0x205) | Out-Null
-    Wait-For { [TestNative]::FindWindow('InstaSpeakTrayPanel','InstaSpeak') -ne [IntPtr]::Zero } 'reopened speed slider'
-    $speedWindow = [TestNative]::FindWindow('InstaSpeakTrayPanel','InstaSpeak')
+    Wait-For { [TestNative]::FindWindow('InstaScanSpeakTrayPanel','InstaScanSpeak') -ne [IntPtr]::Zero } 'reopened speed slider'
+    $speedWindow = [TestNative]::FindWindow('InstaScanSpeakTrayPanel','InstaScanSpeak')
     $slider = [SpeedEvidence]::GetDlgItem($speedWindow,1)
     Wait-For { [TestNative]::SendMessage([SpeedEvidence]::GetDlgItem($speedWindow,1),0x400,[IntPtr]0,[IntPtr]0).ToInt64() -eq 13 } 'retained speed after panel creation'
     $slider = [SpeedEvidence]::GetDlgItem($speedWindow,1)
@@ -69,16 +69,16 @@ try {
     for ($i=0; $i -lt 10; $i++) { [TestNative]::SendMessage($slider,0x100,[IntPtr]0x27,[IntPtr]0) | Out-Null }
     Wait-For { (Get-Content -LiteralPath $testSettings -Raw) -match '(?m)^rate=0$' } 'normal speed reset'
     [TestNative]::PostMessage($speedWindow,0x111,[IntPtr]2,[IntPtr]0) | Out-Null
-    Wait-For { [TestNative]::FindWindow('InstaSpeakTrayPanel','InstaSpeak') -eq [IntPtr]::Zero } 'close speed slider'
+    Wait-For { [TestNative]::FindWindow('InstaScanSpeakTrayPanel','InstaScanSpeak') -eq [IntPtr]::Zero } 'close speed slider'
     Write-Host 'PASS right-click tray panel, inline slider, full range, live changes, saved settings, and reopen'
     [TestNative]::FocusFixture([IntPtr]$state.form,[IntPtr]$state.input)
     [TestNative]::Hotkey(0x51)
     $ocr = & $cli --capture-rect $state.x $state.y $state.width $state.height
-    if ($LASTEXITCODE -ne 0 -or ($ocr -join "`n") -notmatch 'InstaSpeak reads this screen text aloud') { throw "OCR failed: $ocr" }
+    if ($LASTEXITCODE -ne 0 -or ($ocr -join "`n") -notmatch 'InstaScanSpeak reads this screen text aloud') { throw "OCR failed: $ocr" }
     Write-Host "PASS screenshot OCR: $ocr"
     [TestNative]::Hotkey(0x41)
-    Wait-For { [TestNative]::FindWindow('InstaSpeakRustSelectionOverlay',$null) -ne [IntPtr]::Zero } 'capture hotkey overlay'
-    $overlay = [TestNative]::FindWindow('InstaSpeakRustSelectionOverlay',$null)
+    Wait-For { [TestNative]::FindWindow('InstaScanSpeakRustSelectionOverlay',$null) -ne [IntPtr]::Zero } 'capture hotkey overlay'
+    $overlay = [TestNative]::FindWindow('InstaScanSpeakRustSelectionOverlay',$null)
     $start = [IntPtr](($state.y -shl 16) -bor ($state.x -band 65535))
     $end = [IntPtr]((($state.y + $state.height) -shl 16) -bor (($state.x + $state.width) -band 65535))
     [TestNative]::PostMessage($overlay,0x201,[IntPtr]1,$start) | Out-Null
@@ -92,8 +92,8 @@ try {
     # Cancel OCR while the UI thread handles the drag result. Delayed work must not speak.
     $speechCount = ([regex]::Matches((Get-Content -LiteralPath $logPath -Raw),'speech_queued_ms=')).Count
     & $cli --trigger capture
-    Wait-For { [TestNative]::FindWindow('InstaSpeakRustSelectionOverlay',$null) -ne [IntPtr]::Zero } 'second capture'
-    $overlay = [TestNative]::FindWindow('InstaSpeakRustSelectionOverlay',$null)
+    Wait-For { [TestNative]::FindWindow('InstaScanSpeakRustSelectionOverlay',$null) -ne [IntPtr]::Zero } 'second capture'
+    $overlay = [TestNative]::FindWindow('InstaScanSpeakRustSelectionOverlay',$null)
     [TestNative]::SendMessage($overlay,0x201,[IntPtr]1,$start) | Out-Null
     [TestNative]::SendMessage($overlay,0x202,[IntPtr]0,$end) | Out-Null
     [TestNative]::PostMessage($mainWindow,0x111,[IntPtr]105,[IntPtr]0) | Out-Null
@@ -114,37 +114,37 @@ try {
     $beforeCopyCount = ([regex]::Matches((Get-Content -LiteralPath $logPath -Raw),'speech_queued_ms=')).Count
     [TestNative]::FocusFixture([IntPtr]$state.form,[IntPtr]$state.input)
     [TestNative]::Hotkey(0x44)
-    Wait-For { [TestNative]::FindWindow('InstaSpeakRustSelectionOverlay',$null) -ne [IntPtr]::Zero } 'copy-only capture hotkey'
-    $overlay = [TestNative]::FindWindow('InstaSpeakRustSelectionOverlay',$null)
+    Wait-For { [TestNative]::FindWindow('InstaScanSpeakRustSelectionOverlay',$null) -ne [IntPtr]::Zero } 'copy-only capture hotkey'
+    $overlay = [TestNative]::FindWindow('InstaScanSpeakRustSelectionOverlay',$null)
     $clipboardChanged = $true
     [TestNative]::PostMessage($overlay,0x201,[IntPtr]1,$start) | Out-Null
     [TestNative]::PostMessage($overlay,0x202,[IntPtr]0,$end) | Out-Null
     Wait-For { (Get-Content -LiteralPath $logPath -Raw) -match 'ocr_copied=true' } 'copy-only OCR result'
-    if ([Windows.Forms.Clipboard]::GetText() -notmatch 'InstaSpeak reads this screen text aloud') { throw 'Copy-only OCR text mismatch' }
+    if ([Windows.Forms.Clipboard]::GetText() -notmatch 'InstaScanSpeak reads this screen text aloud') { throw 'Copy-only OCR text mismatch' }
     $afterCopyCount = ([regex]::Matches((Get-Content -LiteralPath $logPath -Raw),'speech_queued_ms=')).Count
     if ($afterCopyCount -ne $beforeCopyCount) { throw 'Copy-only OCR triggered speech' }
     Write-Host 'PASS copy-only OCR hotkey, clipboard text, and no speech'
     [TestNative]::PostMessage($mainWindow,0x8001,[IntPtr]1,[IntPtr]0x205) | Out-Null
-    Wait-For { [TestNative]::FindWindow('InstaSpeakTrayPanel','InstaSpeak') -ne [IntPtr]::Zero } 'tray copy button'
-    $panel = [TestNative]::FindWindow('InstaSpeakTrayPanel','InstaSpeak')
+    Wait-For { [TestNative]::FindWindow('InstaScanSpeakTrayPanel','InstaScanSpeak') -ne [IntPtr]::Zero } 'tray copy button'
+    $panel = [TestNative]::FindWindow('InstaScanSpeakTrayPanel','InstaScanSpeak')
     Wait-For { [SpeedEvidence]::GetDlgItem($panel,106) -ne [IntPtr]::Zero } 'tray copy button creation'
     $button = [SpeedEvidence]::GetDlgItem($panel,106)
     [TestNative]::SendMessage($button,0xF5,[IntPtr]0,[IntPtr]0) | Out-Null
-    Wait-For { [TestNative]::FindWindow('InstaSpeakRustSelectionOverlay',$null) -ne [IntPtr]::Zero } 'tray copy action'
+    Wait-For { [TestNative]::FindWindow('InstaScanSpeakRustSelectionOverlay',$null) -ne [IntPtr]::Zero } 'tray copy action'
     & $cli --trigger stop
-    Wait-For { [TestNative]::FindWindow('InstaSpeakRustSelectionOverlay',$null) -eq [IntPtr]::Zero } 'cancel tray copy'
+    Wait-For { [TestNative]::FindWindow('InstaScanSpeakRustSelectionOverlay',$null) -eq [IntPtr]::Zero } 'cancel tray copy'
     [TestNative]::PostMessage($mainWindow,0x8001,[IntPtr]1,[IntPtr]0x205) | Out-Null
-    Wait-For { [TestNative]::FindWindow('InstaSpeakTrayPanel','InstaSpeak') -ne [IntPtr]::Zero } 'tray dismissal test'
+    Wait-For { [TestNative]::FindWindow('InstaScanSpeakTrayPanel','InstaScanSpeak') -ne [IntPtr]::Zero } 'tray dismissal test'
     [TestNative]::FocusFixture([IntPtr]$state.form,[IntPtr]$state.input)
-    Wait-For { [TestNative]::FindWindow('InstaSpeakTrayPanel','InstaSpeak') -eq [IntPtr]::Zero } 'tray panel dismissal on focus change'
+    Wait-For { [TestNative]::FindWindow('InstaScanSpeakTrayPanel','InstaScanSpeak') -eq [IntPtr]::Zero } 'tray panel dismissal on focus change'
     Write-Host 'PASS tray copy button and popup dismissal'
 
     $beforeTrayRead = ([regex]::Matches((Get-Content -LiteralPath $logPath -Raw),'speech_queued_ms=')).Count
     [TestNative]::FocusFixture([IntPtr]$state.form,[IntPtr]$state.input)
     [TestNative]::SendMessage([IntPtr]$state.input,0xB1,[IntPtr]0,[IntPtr](-1)) | Out-Null
     [TestNative]::PostMessage($mainWindow,0x8001,[IntPtr]1,[IntPtr]0x205) | Out-Null
-    Wait-For { [TestNative]::FindWindow('InstaSpeakTrayPanel','InstaSpeak') -ne [IntPtr]::Zero } 'tray selection reader'
-    $panel = [TestNative]::FindWindow('InstaSpeakTrayPanel','InstaSpeak')
+    Wait-For { [TestNative]::FindWindow('InstaScanSpeakTrayPanel','InstaScanSpeak') -ne [IntPtr]::Zero } 'tray selection reader'
+    $panel = [TestNative]::FindWindow('InstaScanSpeakTrayPanel','InstaScanSpeak')
     Wait-For { [SpeedEvidence]::GetDlgItem($panel,104) -ne [IntPtr]::Zero } 'tray selection button'
     [TestNative]::SendMessage([SpeedEvidence]::GetDlgItem($panel,104),0xF5,[IntPtr]0,[IntPtr]0) | Out-Null
     Wait-For { ([regex]::Matches((Get-Content -LiteralPath $logPath -Raw),'speech_queued_ms=')).Count -gt $beforeTrayRead } 'tray selection focus restoration'
@@ -152,8 +152,8 @@ try {
     Write-Host 'PASS tray read-selection button restores document focus'
 
     [TestNative]::PostMessage($mainWindow,0x8001,[IntPtr]1,[IntPtr]0x205) | Out-Null
-    Wait-For { [TestNative]::FindWindow('InstaSpeakTrayPanel','InstaSpeak') -ne [IntPtr]::Zero } 'tray selectors'
-    $panel = [TestNative]::FindWindow('InstaSpeakTrayPanel','InstaSpeak')
+    Wait-For { [TestNative]::FindWindow('InstaScanSpeakTrayPanel','InstaScanSpeak') -ne [IntPtr]::Zero } 'tray selectors'
+    $panel = [TestNative]::FindWindow('InstaScanSpeakTrayPanel','InstaScanSpeak')
     Wait-For { [SpeedEvidence]::GetDlgItem($panel,11) -ne [IntPtr]::Zero } 'tray selectors creation'
     $voicePicker = [SpeedEvidence]::GetDlgItem($panel,10)
     [TestNative]::SendMessage($voicePicker,0x14E,[IntPtr]0,[IntPtr]0) | Out-Null

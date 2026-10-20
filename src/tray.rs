@@ -51,7 +51,7 @@ pub fn show(owner: HWND, existing: Option<HWND>, options: &Options) -> Result<HW
             dwICC: ICC_BAR_CLASSES,
         })
         .ok()?;
-        super::register_window_class("InstaSpeakTrayPanel", Some(window_proc), IDC_ARROW)?;
+        super::register_window_class("InstaScanSpeakTrayPanel", Some(window_proc), IDC_ARROW)?;
         let mut point = POINT::default();
         GetCursorPos(&mut point)?;
         let state = Box::into_raw(Box::new(State {
@@ -62,8 +62,8 @@ pub fn show(owner: HWND, existing: Option<HWND>, options: &Options) -> Result<HW
         }));
         let hwnd = match CreateWindowExW(
             WS_EX_TOOLWINDOW | WS_EX_CONTROLPARENT | WS_EX_TOPMOST,
-            w!("InstaSpeakTrayPanel"),
-            w!("InstaSpeak"),
+            w!("InstaScanSpeakTrayPanel"),
+            w!("InstaScanSpeak"),
             WS_POPUP | WS_BORDER,
             point.x - 360,
             point.y - 536,
@@ -154,7 +154,7 @@ unsafe fn create_controls(
     };
     control(
         w!("STATIC"),
-        "InstaSpeak  |  OCR and speech",
+        "InstaScanSpeak  |  OCR and speech",
         WINDOW_STYLE(0),
         0,
         16,

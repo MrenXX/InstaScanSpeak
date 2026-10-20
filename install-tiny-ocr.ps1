@@ -4,9 +4,9 @@ $ProgressPreference = 'SilentlyContinue'
 $root = Join-Path $env:LOCALAPPDATA 'InstaSpeak'
 $models = Join-Path $root 'tiny-ocr'
 $cache = Join-Path $root 'downloads'
-$cli = Join-Path $root 'instaspeak-cli.exe'
-$app = Join-Path $root 'instaspeak.exe'
-if (!(Test-Path -LiteralPath (Join-Path $root 'instaspeak-ocr.exe'))) { throw 'Install InstaSpeak v0.5 or newer first.' }
+$cli = Join-Path $root 'instascanspeak-cli.exe'
+$app = Join-Path $root 'instascanspeak.exe'
+if (!(Test-Path -LiteralPath (Join-Path $root 'instascanspeak-ocr.exe'))) { throw 'Install InstaScanSpeak first.' }
 New-Item -ItemType Directory -Force -Path $models,$cache | Out-Null
 function Matches-Hash($path,$hash) { return (Test-Path -LiteralPath $path) -and ((Get-FileHash -LiteralPath $path).Hash -eq $hash) }
 function Download-Verified($url,$path,$hash) {
@@ -32,10 +32,10 @@ if (!$runtimeValid) {
     Write-Host 'The one-time upstream runtime download is about 79 MiB. Only about 17 MiB is installed.'
     Download-Verified 'https://github.com/microsoft/onnxruntime/releases/download/v1.31.0/onnxruntime-win-x64-1.31.0.zip' $archivePath '3958D8A44984160692C1B4FFD0DE3CB48F8C39F9D34BB31E433DB06E30B82195'
 }
-$running = @(Get-Process instaspeak -ErrorAction SilentlyContinue | Where-Object {$_.Path -ieq $app})
+$running = @(Get-Process instascanspeak -ErrorAction SilentlyContinue | Where-Object {$_.Path -ieq $app})
 if ($running.Count -gt 0) {
     & $cli --trigger exit
-    foreach ($process in $running) {if (!$process.HasExited -and !$process.WaitForExit(5000)) {throw 'InstaSpeak did not exit. Close it before updating Tiny OCR.'}}
+    foreach ($process in $running) {if (!$process.HasExited -and !$process.WaitForExit(5000)) {throw 'InstaScanSpeak did not exit. Close it before updating Tiny OCR.'}}
 }
 try {
     if (!$runtimeValid) {
@@ -63,7 +63,7 @@ https://github.com/RapidAI/RapidOCR
 Model registry version: v3.10.0. Character dictionary is embedded in the recognition model metadata.
 Inference: ONNX Runtime 1.31.0, MIT. License and third-party notices are installed here.
 Native helper: OAR OCR Core, Apache-2.0, https://github.com/GreatV/oar-ocr
-Helper dependency notices are installed under InstaSpeak/resources.
+Helper dependency notices are installed under InstaScanSpeak/resources.
 Models and runtime are downloaded directly from their upstream projects.
 '@)
     Get-ChildItem -LiteralPath $models -File | Unblock-File

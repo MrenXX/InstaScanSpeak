@@ -246,7 +246,7 @@ mod tests {
         speech.stop();
         speech.wait(2000)?;
         assert_eq!(speech.toggle_pause()?, None);
-        speech.speak("InstaSpeak is ready.", "", 0)?;
+        speech.speak("InstaScanSpeak is ready.", "", 0)?;
         speech.wait(10_000)?;
         drop(speech);
         unsafe {
@@ -269,7 +269,7 @@ pub fn benchmark() -> Result<()> {
             start.elapsed().as_secs_f64() * 1000.0
         );
         for i in 0..3 {
-            let text = wide("InstaSpeak is ready.");
+            let text = wide("InstaScanSpeak is ready.");
             let start = Instant::now();
             voice.Speak(
                 PCWSTR(text.as_ptr()),

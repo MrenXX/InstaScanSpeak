@@ -1,6 +1,6 @@
 $ErrorActionPreference='Stop'
 $projectDir=Split-Path -Parent $PSScriptRoot
-$cli=Join-Path $projectDir 'dist/windows-x64/instaspeak-cli.exe'
+$cli=Join-Path $projectDir 'dist/windows-x64/instascanspeak-cli.exe'
 $artifacts=Join-Path $projectDir 'artifacts'
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -Path (Join-Path $PSScriptRoot 'native-test.cs')
@@ -28,8 +28,8 @@ function Helper-Id {$matches=[regex]::Matches((Get-Content $log -Raw),'tiny_help
 function Capture($key){
  [TestNative]::FocusFixture([IntPtr]$state.form,[IntPtr]$state.input)
  [TestNative]::Hotkey($key)
- Wait-For {[TestNative]::FindWindow('InstaSpeakRustSelectionOverlay',$null) -ne [IntPtr]::Zero} 'capture overlay'
- $overlay=[TestNative]::FindWindow('InstaSpeakRustSelectionOverlay',$null)
+ Wait-For {[TestNative]::FindWindow('InstaScanSpeakRustSelectionOverlay',$null) -ne [IntPtr]::Zero} 'capture overlay'
+ $overlay=[TestNative]::FindWindow('InstaScanSpeakRustSelectionOverlay',$null)
  $start=[IntPtr](($state.y -shl 16) -bor ($state.x -band 65535))
  $end=[IntPtr]((($state.y+$state.height) -shl 16) -bor (($state.x+$state.width) -band 65535))
  [TestNative]::PostMessage($overlay,0x201,[IntPtr]1,$start) | Out-Null
@@ -45,7 +45,7 @@ try{
  [TestNative]::ShowWindow([IntPtr]$state.form,5) | Out-Null
  Capture 0x44
  Wait-For {(Count-Log 'ocr_copied=true') -eq 1} 'Tiny copy OCR'
- if([Windows.Forms.Clipboard]::GetText() -notmatch 'InstaSpeak reads this screen text aloud'){throw 'Tiny OCR text mismatch'}
+ if([Windows.Forms.Clipboard]::GetText() -notmatch 'InstaScanSpeak reads this screen text aloud'){throw 'Tiny OCR text mismatch'}
  if((Count-Log 'speech_queued_ms=') -ne 0){throw 'Copy OCR started speech'}
  $helper=Helper-Id
  Write-Host "PASS Ctrl+Alt+D uses Tiny, copies text, and does not speak; helper $([math]::Round((Get-Process -Id $helper).WorkingSet64/1MB,1)) MiB"
@@ -57,8 +57,8 @@ try{
  Write-Host 'PASS Ctrl+Alt+A reads Tiny OCR through Northern English Male; Ctrl+Alt+Q stops it'
  $main=[TestNative]::FindWindow('InstaSpeakRustHiddenWindow',$null)
  [TestNative]::PostMessage($main,0x8001,[IntPtr]1,[IntPtr]0x205) | Out-Null
- Wait-For {[TestNative]::FindWindow('InstaSpeakTrayPanel','InstaSpeak') -ne [IntPtr]::Zero} 'tray panel'
- $panel=[TestNative]::FindWindow('InstaSpeakTrayPanel','InstaSpeak')
+ Wait-For {[TestNative]::FindWindow('InstaScanSpeakTrayPanel','InstaScanSpeak') -ne [IntPtr]::Zero} 'tray panel'
+ $panel=[TestNative]::FindWindow('InstaScanSpeakTrayPanel','InstaScanSpeak')
  Wait-For {[SpeedEvidence]::GetDlgItem($panel,12) -ne [IntPtr]::Zero} 'engine selector'
  $combo=[SpeedEvidence]::GetDlgItem($panel,12)
  if([TestNative]::SendMessage($combo,0x147,[IntPtr]0,[IntPtr]0).ToInt64() -ne 1){throw 'Tiny selection was not shown'}

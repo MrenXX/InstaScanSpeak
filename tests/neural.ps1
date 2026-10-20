@@ -1,6 +1,6 @@
 $ErrorActionPreference = 'Stop'
 $projectDir = Split-Path -Parent $PSScriptRoot
-$cli = Join-Path $projectDir 'dist\windows-x64\instaspeak-cli.exe'
+$cli = Join-Path $projectDir 'dist\windows-x64\instascanspeak-cli.exe'
 $artifacts = Join-Path $projectDir 'artifacts'
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -Path (Join-Path $PSScriptRoot 'native-test.cs')
@@ -93,7 +93,7 @@ public static class NeuralFixtureText {
     [TestNative]::Hotkey(0x51)
     Start-Sleep -Milliseconds 300
     if (([regex]::Matches((Get-Content -LiteralPath $logPath -Raw),'neural_audio_started=')).Count -ne $audioCount) { throw 'Audio restarted after Stop' }
-    [NeuralFixtureText]::SetWindowText([IntPtr]$state.input,'Selected text is read aloud by InstaSpeak.') | Out-Null
+    [NeuralFixtureText]::SetWindowText([IntPtr]$state.input,'Selected text is read aloud by InstaScanSpeak.') | Out-Null
     $finishedCount = ([regex]::Matches((Get-Content -LiteralPath $logPath -Raw),'neural_finished=true')).Count
     Read-Selected
     Wait-For { ([regex]::Matches((Get-Content -LiteralPath $logPath -Raw),'neural_finished=true')).Count -gt $finishedCount } 'playback before process exit'

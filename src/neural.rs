@@ -308,7 +308,7 @@ fn read(
     job: &Job,
 ) -> Result<()> {
     let start = Instant::now();
-    let directory = std::env::temp_dir().join("InstaSpeak");
+    let directory = std::env::temp_dir().join("InstaScanSpeak");
     fs::create_dir_all(&directory).map_err(|e| error(&e.to_string()))?;
     for (index, part) in sections(text).iter().enumerate() {
         if generation != shared.generation.load(Ordering::SeqCst) {
